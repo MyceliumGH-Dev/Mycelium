@@ -1,4 +1,4 @@
-# Parcel Design Alternatives Generator  
+# Design Alternatives Generator  
 *(Pure Python + Grasshopper, Apache-2.0)*
 
 This toolkit generates **building massing alternatives** for a given **parcel boundary**, using controls similar to:
