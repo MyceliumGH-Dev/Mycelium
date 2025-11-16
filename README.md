@@ -1,4 +1,4 @@
-# Design Alternatives Generator  
+# Generative Design Tool
 *(Pure Python + Grasshopper, Apache-2.0)*
 
 This toolkit generates **building massing alternatives** for a given **parcel boundary**, using controls similar to:
@@ -31,9 +31,6 @@ Suggested layout:
 └── grasshopper/
     ├── gh_parcel_gen.py    # GhPython script (same logic as python/)
     └── README_GRASSHOPPER.md
-```
-
-You can rename/reorganize as needed; just keep Python and GhPython APIs in sync.
 
 ---
 
