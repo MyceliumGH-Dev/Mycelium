@@ -17,7 +17,7 @@ MIN_EDGE_BUFFER = 5.0          # meters, parcel boundary setback
 MIN_BUILDING_BUFFER = 6.0      # meters, min edge-to-edge separation
 
 # Provisional side length used only to find feasible centroids
-PROVISIONAL_SIDE = 15.0        # meters, small-ish point tower
+PROVISIONAL_SIDE = 10.0        # meters, small-ish point tower
 
 # Iterative resize parameters for FAR balancing
 MAX_RESIZE_ITERS = 20
@@ -94,65 +94,144 @@ def generate_point_layout(
 
     u_minx, u_miny, u_maxx, u_maxy = usable_prov.bounds
 
-    # Center spacing based on provisional size + min spacing
-    center_spacing = side_prov + MIN_BUILDING_BUFFER
+    # Bounds for building centers (to ensure they stay inside the usable parcel)
+    min_cx = u_minx + half_prov
+    max_cx = u_maxx - half_prov
+    min_cy = u_miny + half_prov
+    max_cy = u_maxy - half_prov
 
-    # Generate jittered grid of candidate centers
-    candidate_points: List[Tuple[float, float]] = []
+    width_centers = max_cx - min_cx
+    height_centers = max_cy - min_cy
 
-    y = u_miny + half_prov
-    while y <= u_maxy - half_prov:
-        x = u_minx + half_prov
-        while x <= u_maxx - half_prov:
-            jitter_range = 0.25 * center_spacing
-            jx = rng.uniform(-jitter_range, jitter_range)
-            jy = rng.uniform(-jitter_range, jitter_range)
+    if width_centers < 0 or height_centers < 0:
+        minx, miny, maxx, maxy = parcel.bounds
+        raise RuntimeError(
+            "Usable parcel too small for provisional towers after setbacks. "
+            f"Parcel: {maxx - minx:.1f}m × {maxy - miny:.1f}m."
+        )
 
-            cx = x + jx
-            cy = y + jy
+    # Minimum center-to-center spacing to respect edge buffer
+    center_min_spacing = side_prov + MIN_BUILDING_BUFFER
 
-            # Clamp inside usable bounds
-            cx = float(np.clip(cx, u_minx + half_prov, u_maxx - half_prov))
-            cy = float(np.clip(cy, u_miny + half_prov, u_maxy - half_prov))
+    # Max possible columns/rows with at least the minimum spacing
+    if width_centers <= 0:
+        max_cols = 1
+    else:
+        max_cols = int(width_centers // center_min_spacing) + 1
 
-            candidate_points.append((cx, cy))
+    if height_centers <= 0:
+        max_rows = 1
+    else:
+        max_rows = int(height_centers // center_min_spacing) + 1
 
-            x += center_spacing
-        y += center_spacing
+    max_cols = max(1, max_cols)
+    max_rows = max(1, max_rows)
 
-    rng.shuffle(candidate_points)
+    # Total capacity of the grid
+    max_cells = max_rows * max_cols
+    if max_cells == 0:
+        minx, miny, maxx, maxy = parcel.bounds
+        raise RuntimeError(
+            "Cannot place any provisional points in parcel with current setbacks/spacing. "
+            f"Parcel: {maxx - minx:.1f}m × {maxy - miny:.1f}m."
+        )
 
-    # Place provisional buildings to determine feasible centroids
-    centroids: List[Tuple[float, float]] = []
-    provisional_polys: List[Polygon] = []
+    # We can never place more towers than total cells
+    n_target = min(n_buildings, max_cells)
 
-    for cx, cy in candidate_points:
-        if len(centroids) >= n_buildings:
-            break
+    # Choose (rows, cols) such that rows*cols >= n_target,
+    # trading off empties vs aspect ratio.
+    aspect_parcel = (width_centers / height_centers) if height_centers > 0 else 1.0
 
+    # Weights: aspect ratio is more important than a couple extra empties.
+    EMPTY_WEIGHT = 1.0
+    ASPECT_WEIGHT = 6.0
+
+    best_rows, best_cols = 1, max(1, n_target)
+    best_score = None  # (cost, empty_cells, aspect_diff)
+
+    for rows in range(1, max_rows + 1):
+        for cols in range(1, max_cols + 1):
+            cells = rows * cols
+            if cells < n_target:
+                continue  # not enough capacity
+
+            empty_cells = cells - n_target
+            aspect_grid = cols / rows
+            aspect_diff = abs(aspect_grid - aspect_parcel)
+
+            cost = EMPTY_WEIGHT * empty_cells + ASPECT_WEIGHT * aspect_diff
+
+            score = (cost, empty_cells, aspect_diff)
+            if best_score is None or score < best_score:
+                best_score = score
+                best_rows, best_cols = rows, cols
+
+    rows = best_rows
+    cols = best_cols
+    cells = rows * cols  # total grid slots
+
+    # Compute evenly spaced grid that uses the full inner-usable extent.
+    # Spacing will be >= center_min_spacing because of how max_rows/max_cols are defined.
+
+    if cols == 1:
+        # Single column → center in X
+        xs = [0.5 * (min_cx + max_cx)]
+    else:
+        spacing_x = width_centers / (cols - 1)
+        xs = [min_cx + i * spacing_x for i in range(cols)]
+
+    if rows == 1:
+        # Single row → center in Y
+        ys = [0.5 * (min_cy + max_cy)]
+    else:
+        spacing_y = height_centers / (rows - 1)
+        ys = [min_cy + j * spacing_y for j in range(rows)]
+
+
+    # Build all grid centers
+    grid_centers: List[Tuple[float, float]] = [
+        (x, y) for y in ys for x in xs
+    ]
+
+    # Filter to those whose provisional footprint is fully inside the usable parcel
+    candidates: List[Tuple[float, float, Polygon]] = []
+    for cx, cy in grid_centers:
         sq = _square_footprint(center=(cx, cy), side=side_prov)
+        if sq.within(usable_prov):
+            candidates.append((cx, cy, sq))
 
-        if not sq.within(usable_prov):
-            continue
+    if not candidates:
+        minx, miny, maxx, maxy = parcel.bounds
+        raise RuntimeError(
+            "No valid provisional tower positions inside usable parcel. "
+            f"Parcel: {maxx - minx:.1f}m × {maxy - miny:.1f}m, "
+            f"Provisional side: {side_prov:.1f}m."
+        )
 
-        # Reject a building if it violates the spacing constraints
-        if any(sq.distance(other) < MIN_BUILDING_BUFFER for other in provisional_polys):
-            continue
+    # We might have lost some cells due to polygon shape
+    # Final number of buildings we can actually place at provisional step:
+    n_place = min(n_target, len(candidates))
 
-        provisional_polys.append(sq)
-        centroids.append((cx, cy))
+    # Sort candidates by distance to parcel center so we fill from the middle outwards
+    center_x = 0.5 * (u_minx + u_maxx)
+    center_y = 0.5 * (u_miny + u_maxy)
+
+    candidates.sort(
+        key=lambda c: (c[0] - center_x) ** 2 + (c[1] - center_y) ** 2
+    )
+
+    chosen = candidates[:n_place]
+
+    centroids: List[Tuple[float, float]] = [(cx, cy) for (cx, cy, _sq) in chosen]
+    provisional_polys: List[Polygon] = [_sq for (_cx, _cy, _sq) in chosen]
 
     actual_n_buildings = len(centroids)
     if actual_n_buildings == 0:
         minx, miny, maxx, maxy = parcel.bounds
         raise RuntimeError(
             "Could not place any point buildings inside parcel with current "
-            "provisional setbacks and spacing constraints. "
-            f"Parcel: {maxx - minx:.1f}m × {maxy - miny:.1f}m, "
-            f"Provisional side: {side_prov:.1f}m, "
-            f"Setback: {MIN_EDGE_BUFFER:.1f}m, "
-            f"Min edge spacing: {MIN_BUILDING_BUFFER:.1f}m. "
-            "Try reducing minimum spacing or increasing parcel size."
+            "provisional setbacks and spacing constraints."
         )
 
     # Trim floor lists to actual placement capacity
