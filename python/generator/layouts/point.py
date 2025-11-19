@@ -13,14 +13,10 @@ from ..types import Building, LayoutResult, Typology
 # --- Tunable "urban design" parameters ----------------------------------------
 
 MIN_EDGE_BUFFER = 5.0          # meters, parcel boundary setback
-MIN_BUILDING_BUFFER = 6.0      # meters, min edge-to-edge separation
+MIN_BUILDING_BUFFER = 14.0      # meters, min edge-to-edge separation
 
-# Provisional side length used only to find feasible centroids
-PROVISIONAL_SIDE = 10.0        # meters, small-ish point tower
-
-# Iterative resize parameters for FAR balancing
-MAX_RESIZE_ITERS = 20
-RESIZE_SHRINK_FACTOR = 0.9     # shrink 10% per failed attempt
+# Minimum provisional side length for initial estimation
+PROVISIONAL_SIDE = 10.0        # meters, minimum point tower size
 
 
 def generate_point_layout(
@@ -33,46 +29,45 @@ def generate_point_layout(
     rng: np.random.Generator,
 ) -> LayoutResult:
     """
-    POINT typology implementation with constraint-relaxation:
+    POINT typology implementation:
 
-    1. Sample floors and floor heights for up to `n_buildings`.
-    2. Use a provisional, small square footprint (PROVISIONAL_SIDE) to:
-       - create an inner "usable" parcel (setbacks)
-       - place as many buildings as fit (up to n_buildings) on a jittered grid.
-       This step defines feasible centroids and actual_n_buildings.
-    3. Given actual_n_buildings and their floors, compute the *ideal* footprint
-       area to hit the requested FAR, and derive a target side length.
-    4. Iteratively attempt to place buildings with this side length, shrinking
-       the side if needed to satisfy:
-         - within inner parcel (MIN_EDGE_BUFFER)
-         - minimum edge-to-edge spacing (MIN_BUILDING_BUFFER)
-    5. Wrap the final footprints + heights into Building objects and return
-       a LayoutResult. Actual FAR may be lower than target if constraints bind.
+    Priority order:
+    1. Maximize number of buildings (up to n_buildings)
+    2. Maximize building footprint size (limited by spacing)
+    3. Adjust floors to achieve target FAR (within floors_min/floors_max)
     """
-
-    # --- 1) RNG for floors + floor height -------------------------------------
-    floors_min_i = max(1, int(round(floors_min)))
-    floors_max_i = max(floors_min_i, int(round(floors_max)))
-
-    # Requested floors list (upper bound for how many we MIGHT place)
-    floors_list: List[int] = rng.integers(
-        low=floors_min_i,
-        high=floors_max_i + 1,
-        size=n_buildings,
-    ).tolist()
-
-    # Floor height: vary around floor_to_floor (±10%) as RNG
-    floor_heights = floor_to_floor * rng.uniform(0.9, 1.1, size=n_buildings)
 
     parcel_area = parcel.area
     if parcel_area <= 0:
         raise ValueError("Parcel polygon has non-positive area.")
 
-    # -------------------------------------------------------------------------
-    # 2) PROVISIONAL STEP: find feasible centroids with a small footprint
-    # -------------------------------------------------------------------------
+    floors_min_i = max(1, int(round(floors_min)))
+    floors_max_i = max(floors_min_i, int(round(floors_max)))
 
-    side_prov = PROVISIONAL_SIDE
+    # -------------------------------------------------------------------------
+    # 1) Estimate building size from FAR for grid spacing
+    # -------------------------------------------------------------------------
+    
+    # Estimate average floors for initial grid sizing
+    avg_floors_estimate = (floors_min_i + floors_max_i) / 2.0
+    total_floors_estimate = avg_floors_estimate * n_buildings
+    
+    if far > 0.0 and total_floors_estimate > 0:
+        # Estimate footprint area per building from FAR
+        estimated_footprint_area = (far * parcel_area) / total_floors_estimate
+        side_estimate = sqrt(estimated_footprint_area)
+    else:
+        # Fallback to provisional size if no FAR target
+        side_estimate = PROVISIONAL_SIDE
+    
+    # Ensure reasonable minimum size
+    side_estimate = max(side_estimate, PROVISIONAL_SIDE)
+    
+    # -------------------------------------------------------------------------
+    # 2) Create grid with spacing based on estimated size
+    # -------------------------------------------------------------------------
+    
+    side_prov = side_estimate
     half_prov = side_prov / 2.0
 
     # Compute a "usable" parcel with a simple fixed setback
@@ -233,75 +228,90 @@ def generate_point_layout(
             "provisional setbacks and spacing constraints."
         )
 
-    # Trim floor lists to actual placement capacity
-    floors_list = floors_list[:actual_n_buildings]
-    floor_heights = floor_heights[:actual_n_buildings]
-
     # -------------------------------------------------------------------------
-    # 3) Compute ideal footprint size from FAR + actual floors
+    # 3) Compute maximum allowed footprint size
     # -------------------------------------------------------------------------
 
-    total_floors = float(sum(floors_list))
-    if total_floors <= 0:
-        raise ValueError("Total floors computed as zero; check floors_min/floors_max.")
-
-    if far > 0.0:
-        ideal_footprint_area = far * parcel_area / total_floors
-        side_target = sqrt(ideal_footprint_area)
-    else:
-        # No FAR target → just keep provisional size
-        side_target = side_prov
-
-    # We'll try to use side_target, but may shrink to satisfy constraints
-    side = side_target
-
-    # Inner parcel for final placement; we keep a basic fixed setback
+    # Inner parcel for final placement
     usable_final = parcel.buffer(-MIN_EDGE_BUFFER)
     if usable_final.is_empty:
-        usable_final = parcel  # fall back to full parcel if setback kills everything
+        usable_final = parcel
 
     if usable_final.geom_type == "MultiPolygon":
         usable_final = max(usable_final.geoms, key=lambda g: g.area)
 
+    # Calculate maximum size based on centroid spacing
+    if len(centroids) > 1:
+        # Find minimum distance between any two centroids
+        min_centroid_dist = float('inf')
+        for i in range(len(centroids)):
+            for j in range(i + 1, len(centroids)):
+                cx1, cy1 = centroids[i]
+                cx2, cy2 = centroids[j]
+                dist = sqrt((cx1 - cx2)**2 + (cy1 - cy2)**2)
+                min_centroid_dist = min(min_centroid_dist, dist)
+        
+        # Maximum building size that maintains MIN_BUILDING_BUFFER spacing
+        max_size_from_spacing = min_centroid_dist - MIN_BUILDING_BUFFER
+    else:
+        # Single building - only limited by parcel
+        max_size_from_spacing = float('inf')
+    
+    # Also check distance from centroids to parcel boundary
+    max_size_from_boundary = float('inf')
+    for cx, cy in centroids:
+        from shapely.geometry import Point
+        centroid_point = Point(cx, cy)
+        # Distance to usable parcel boundary
+        dist_to_boundary = centroid_point.distance(usable_final.boundary)
+        # Building can extend this far from center
+        max_radius = dist_to_boundary
+        max_size_from_boundary = min(max_size_from_boundary, max_radius * 2)
+    
+    # Take the minimum of all constraints
+    max_allowed_size = min(max_size_from_spacing, max_size_from_boundary)
+    max_allowed_size = max(max_allowed_size, PROVISIONAL_SIDE)  # Never smaller than provisional
+    
+    # Use maximum allowed size (buildings as large as spacing permits)
+    side = max_allowed_size
+    
     # -------------------------------------------------------------------------
-    # 4) Iteratively attempt to place final-sized buildings, shrinking if needed
+    # 4) Calculate floors to achieve target FAR
+    # -------------------------------------------------------------------------
+    
+    # Total footprint area
+    footprint_area_per_building = side * side
+    total_footprint_area = footprint_area_per_building * actual_n_buildings
+    
+    # Calculate floors needed to hit FAR target
+    if far > 0.0:
+        target_total_floor_area = far * parcel_area
+        floors_needed = target_total_floor_area / total_footprint_area
+    else:
+        # No FAR target, use average of min/max
+        floors_needed = (floors_min_i + floors_max_i) / 2.0
+    
+    # Round and clamp to constraints
+    floors_uniform = int(round(floors_needed))
+    floors_uniform = max(floors_min_i, min(floors_uniform, floors_max_i))
+    
+    # Assign floors to each building (could add variation here)
+    floors_list = [floors_uniform] * actual_n_buildings
+    
+    # Floor heights with slight variation
+    floor_heights = floor_to_floor * rng.uniform(0.9, 1.1, size=actual_n_buildings)
+    
+    # -------------------------------------------------------------------------
+    # 5) Place final buildings at maximum allowed size
     # -------------------------------------------------------------------------
 
     buildings_polys: List[Polygon] = []
-    for _ in range(MAX_RESIZE_ITERS):
-        candidate_polys: List[Polygon] = []
-        ok = True
-
-        for cx, cy in centroids:
-            sq = _square_footprint(center=(cx, cy), side=side)
-
-            if not sq.within(usable_final):
-                ok = False
-                break
-
-            # Enforce minimum spacing
-            if any(sq.distance(other) < MIN_BUILDING_BUFFER for other in candidate_polys):
-                ok = False
-                break
-
-            candidate_polys.append(sq)
-
-        if ok:
-            buildings_polys = candidate_polys
-            break
-
-        # If constraints fail, shrink the footprint and try again
-        side *= RESIZE_SHRINK_FACTOR
-
-    if not buildings_polys:
-        # As a last resort, fall back to provisional size (which we know fits)
-        buildings_polys = []
-        for (cx, cy) in centroids:
-            buildings_polys.append(_square_footprint(center=(cx, cy), side=side_prov))
-        side = side_prov  # realized side is provisional
+    for cx, cy in centroids:
+        sq = _square_footprint(center=(cx, cy), side=side)
+        buildings_polys.append(sq)
 
     # -------------------------------------------------------------------------
-    # 5) Wrap in Building objects and compute density
+    # 6) Wrap in Building objects and compute density
     # -------------------------------------------------------------------------
 
     buildings: List[Building] = []
