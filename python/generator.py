@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import random
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Iterable, Tuple
 
 from shapely import affinity
 from shapely.geometry import Polygon
@@ -108,6 +108,85 @@ def _place_shape_in_site(
 
 
 # ---------------------------------------------------------------------------
+# Geometry helpers
+# ---------------------------------------------------------------------------
+
+def _length_width_from_footprint(poly: Polygon) -> Tuple[float, float]:
+    """Compute (length, width) from a footprint using the minimum rotated rectangle.
+
+    Returns the longer side as `length` and the shorter as `width`.
+    """
+    if poly.is_empty:
+        return 0.0, 0.0
+
+    mrr = poly.minimum_rotated_rectangle
+    coords = list(mrr.exterior.coords)
+
+    # minimum rotated rectangle is a 5-point polygon (first == last)
+    edges = []
+    for i in range(len(coords) - 1):
+        x1, y1 = coords[i]
+        x2, y2 = coords[i + 1]
+        dx = x2 - x1
+        dy = y2 - y1
+        dist = math.hypot(dx, dy)
+        if dist > 1e-9:
+            edges.append(dist)
+
+    if not edges:
+        return 0.0, 0.0
+
+    # rectangle: two pairs of equal edges; take unique lengths
+    unique_lengths = sorted(set(round(e, 6) for e in edges))
+    if len(unique_lengths) == 1:
+        # square
+        length = width = unique_lengths[0]
+    else:
+        width = unique_lengths[0]
+        length = unique_lengths[-1]
+
+    return float(length), float(width)
+
+
+def _compute_density(footprints: Iterable[Polygon]) -> float:
+    """Compute a simple density metric based on distances between buildings.
+
+    Heuristic:
+      - For each building, compute distance to its nearest neighbor.
+      - Take the average nearest-neighbor distance `d_avg`.
+      - Define Density = N / (1 + d_avg).
+
+    This grows when you have *more* buildings and they are *closer together*.
+    """
+    footprints = [fp for fp in footprints if not fp.is_empty]
+    n = len(footprints)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        # Single building; arbitrary low density > 0
+        return 1.0
+
+    distances = []
+    for i, fp in enumerate(footprints):
+        d_min = None
+        for j, fp2 in enumerate(footprints):
+            if i == j:
+                continue
+            d = fp.distance(fp2)
+            if d_min is None or d < d_min:
+                d_min = d
+        if d_min is not None:
+            distances.append(d_min)
+
+    if not distances:
+        return float(n)
+
+    d_avg = sum(distances) / len(distances)
+    density = n / (1.0 + d_avg)
+    return float(density)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -137,9 +216,29 @@ def generate_alternative(
     -------
     dict
         {
-          "footprints": list of shapely Polygons,
-          "heights": list of floats (meters),
-          "metrics": dict with GFA, FAR, SCR, etc.
+          "buildings": [
+              {
+                  "footprint": Polygon,
+                  "centroid": (x, y),
+                  "length": float,
+                  "width": float,
+                  "floors": float,
+                  "floor_height": float,
+                  "total_height": float,
+              },
+              ...
+          ],
+          "metrics": {
+              "parcel_area": float,
+              "target_gfa": float,
+              "actual_gfa": float,
+              "target_far": float,
+              "actual_far": float,
+              "avg_floors": float,
+              "scr": float,
+              "n_buildings": int,
+              "density": float,
+          },
         }
     """
     if n_buildings <= 0:
@@ -150,14 +249,14 @@ def generate_alternative(
     parcel_area = site_poly.area
     # simple average floors for now
     avg_floors = targets.avg_floors()
+    floor_height = targets.floor_to_floor
 
     total_footprint_area = targets.gfa / avg_floors
     per_building_area = total_footprint_area / n_buildings
 
     proto = _prototype_shape(typology)
 
-    footprints: List[Polygon] = []
-    heights: List[float] = []
+    buildings: List[Dict[str, object]] = []
 
     for _ in range(n_buildings):
         scaled = _scale_shape_to_area(proto, per_building_area)
@@ -167,14 +266,30 @@ def generate_alternative(
             # failed to place this building; skip
             continue
 
-        footprints.append(placed)
-        heights.append(targets.height_for_floors(avg_floors))
+        length, width = _length_width_from_footprint(placed)
+        centroid = (placed.centroid.x, placed.centroid.y)
+        total_height = avg_floors * floor_height
+
+        buildings.append(
+            {
+                "footprint": placed,
+                "centroid": centroid,
+                "length": length,
+                "width": width,
+                "floors": avg_floors,
+                "floor_height": floor_height,
+                "total_height": total_height,
+            }
+        )
 
     # recompute metrics from actual geometry we managed to place
-    actual_fp_area = sum(p.area for p in footprints)
+    footprints = [b["footprint"] for b in buildings]
+    actual_fp_area = sum(fp.area for fp in footprints)
     actual_gfa = actual_fp_area * avg_floors
     actual_far = actual_gfa / parcel_area if parcel_area > 0 else 0.0
     scr = actual_fp_area / parcel_area if parcel_area > 0 else 0.0
+
+    density = _compute_density(footprints)
 
     metrics = {
         "parcel_area": parcel_area,
@@ -184,12 +299,12 @@ def generate_alternative(
         "actual_far": actual_far,
         "avg_floors": avg_floors,
         "scr": scr,
-        "n_buildings": len(footprints),
+        "n_buildings": len(buildings),
+        "density": density,
     }
 
     return {
-        "footprints": footprints,
-        "heights": heights,
+        "buildings": buildings,
         "metrics": metrics,
     }
 
@@ -214,3 +329,69 @@ def generate_batch(
         )
         alts.append(alt)
     return alts
+
+
+# --------
+# API
+# --------
+
+def generate_layout_from_location(
+    parcel_vertices: List[Tuple[float, float]],
+    structure_type: str,
+    *,
+    n_buildings: int = 1,
+    far: float = 3.0,
+    floors_min: float = 5.0,
+    floors_max: float = 12.0,
+    floor_to_floor: float = 3.2,  # meters; ~10.5 ft
+    seed: int | None = None,
+) -> Dict[str, object]:
+    """High-level API for your backend.
+
+    Inputs
+    ------
+    parcel_vertices : list of (x, y)
+        The parcel's location/geometry in projected coordinates
+        (you can convert from lat/lon earlier in the pipeline).
+    structure_type : {"point", "slab", "l_shaped", "u_shaped", "o_shaped"}
+        Building typology.
+    n_buildings : int, optional
+        Number of buildings to try to place.
+    far : float, optional
+        Target floor area ratio. Used to derive GFA from parcel area.
+    floors_min, floors_max : float, optional
+        Floors range for targets.
+    floor_to_floor : float, optional
+        Height of each floor in meters.
+    seed : int | None, optional
+        Random seed.
+
+    Outputs
+    -------
+    Same schema as `generate_alternative`, i.e.:
+      - "buildings": list of dicts with
+          centroid, length, width, floors, floor_height, total_height, footprint
+      - "metrics" including "density"
+    """
+    site_poly = Polygon(parcel_vertices)
+    parcel_area = site_poly.area
+    gfa = far * parcel_area
+
+    targets = ParcelTargets(
+        parcel_area=parcel_area,
+        gfa=gfa,
+        far=far,
+        floors_min=floors_min,
+        floors_max=floors_max,
+        floor_to_floor=floor_to_floor,
+    )
+
+    typology = Typology(structure_type)
+
+    return generate_alternative(
+        site_poly=site_poly,
+        typology=typology,
+        targets=targets,
+        n_buildings=n_buildings,
+        seed=seed,
+    )

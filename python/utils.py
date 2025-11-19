@@ -26,8 +26,10 @@ def plot_alternative(parcel: Polygon, alternative: dict) -> None:
 
     _plot_polygon(ax, parcel, filled=False)
 
-    footprints = alternative.get("footprints", [])
-    for fp in footprints:
+    # Plot each building footprint from the new schema
+    buildings = alternative.get("buildings", [])
+    for b in buildings:
+        fp = b.get("footprint")
         _plot_polygon(ax, fp, filled=True, alpha=0.4)
 
     ax.set_aspect("equal", "box")
