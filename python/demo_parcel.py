@@ -7,12 +7,12 @@ from utils import plot_alternative
 
 def main() -> None:
     # Example rectangular parcel (in local meters; you can sub in projected coords)
-    parcel_vertices = [(0, 0), (120, 0), (120, 120), (0, 120)]
+    parcel_vertices = [(0, 0), (50, 0), (120, 120), (0, 120)]
 
     alt = generate_layout_from_location(
         parcel_vertices=parcel_vertices,
         structure_type=Typology.POINT.value,
-        n_buildings=10,
+        n_buildings=10, # Does not affect courtyard layout
         far=3.0,
         floors_min=5.0,
         floors_max=12.0,

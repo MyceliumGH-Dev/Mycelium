@@ -6,7 +6,9 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from .types import Typology, LayoutResult
-from .typologies.point import generate_point_layout
+from .layouts.point import generate_point_layout
+from .layouts.linear import generate_linear_layout
+from .layouts.courtyard import generate_courtyard_layout
 
 
 def generate_layout_from_location(
@@ -63,7 +65,7 @@ def generate_layout_from_location(
 
     rng = np.random.default_rng(seed)
 
-    # POINT typology
+    # Route to specified layout's generator
     if typology is Typology.POINT:
         result = generate_point_layout(
             parcel=parcel,
@@ -74,12 +76,28 @@ def generate_layout_from_location(
             floor_to_floor=floor_to_floor,
             rng=rng,
         )
-        # Convert to dict format with computed metrics including density
-        return result.to_dict()
-
-    # Later:
-    # if typology is Typology.SLAB:
-    #     return generate_slab_layout(...)
-    # ...
-
-    raise NotImplementedError(f"Typology {typology.value!r} is not implemented yet.")
+    elif typology is Typology.LINEAR:
+        result = generate_linear_layout(
+            parcel=parcel,
+            n_buildings=n_buildings,
+            far=far,
+            floors_min=floors_min,
+            floors_max=floors_max,
+            floor_to_floor=floor_to_floor,
+            rng=rng,
+        )
+    elif typology is Typology.COURTYARD:
+        result = generate_courtyard_layout(
+            parcel=parcel,
+            n_buildings=n_buildings,
+            far=far,
+            floors_min=floors_min,
+            floors_max=floors_max,
+            floor_to_floor=floor_to_floor,
+            rng=rng,
+        )
+    else:
+        raise NotImplementedError(f"Typology {typology.value!r} is not implemented yet.")
+    
+    # Convert to dict format with computed metrics including density
+    return result.to_dict()

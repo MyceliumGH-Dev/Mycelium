@@ -12,7 +12,6 @@ from ..types import Building, LayoutResult, Typology
 
 # --- Tunable "urban design" parameters ----------------------------------------
 
-# Hard-ish geometric constraints
 MIN_EDGE_BUFFER = 5.0          # meters, parcel boundary setback
 MIN_BUILDING_BUFFER = 6.0      # meters, min edge-to-edge separation
 

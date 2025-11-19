@@ -9,6 +9,8 @@ import math
 
 class Typology(str, Enum):
     POINT = "point"
+    LINEAR = "linear"
+    COURTYARD = "courtyard"
     SLAB = "slab"
     L = "l_shaped"
     U = "u_shaped"
