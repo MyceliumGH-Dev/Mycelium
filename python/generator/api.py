@@ -20,6 +20,9 @@ def generate_layout_from_location(
     floors_max: float,
     floor_to_floor: float,
     seed: Optional[int] = None,
+    min_edge_buffer: Optional[float] = None,
+    min_building_buffer: Optional[float] = None,
+    min_building_thickness: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Main entry-point for generating building layouts.
@@ -40,6 +43,12 @@ def generate_layout_from_location(
         Height of each floor in meters.
     seed : Optional[int]
         Random seed for reproducibility.
+    min_edge_buffer : Optional[float]
+        Parcel boundary setback in meters (default varies by typology).
+    min_building_buffer : Optional[float]
+        Minimum edge-to-edge separation between buildings in meters (for linear/point).
+    min_building_thickness : Optional[float]
+        Minimum building thickness in meters (for courtyard).
         
     Returns
     -------
@@ -67,35 +76,50 @@ def generate_layout_from_location(
 
     # Route to specified layout's generator
     if typology is Typology.POINT:
-        result = generate_point_layout(
-            parcel=parcel,
-            n_buildings=n_buildings,
-            far=far,
-            floors_min=floors_min,
-            floors_max=floors_max,
-            floor_to_floor=floor_to_floor,
-            rng=rng,
-        )
+        kwargs = {
+            'parcel': parcel,
+            'n_buildings': n_buildings,
+            'far': far,
+            'floors_min': floors_min,
+            'floors_max': floors_max,
+            'floor_to_floor': floor_to_floor,
+            'rng': rng,
+        }
+        if min_edge_buffer is not None:
+            kwargs['min_edge_buffer'] = min_edge_buffer
+        if min_building_buffer is not None:
+            kwargs['min_building_buffer'] = min_building_buffer
+        result = generate_point_layout(**kwargs)
     elif typology is Typology.LINEAR:
-        result = generate_linear_layout(
-            parcel=parcel,
-            n_buildings=n_buildings,
-            far=far,
-            floors_min=floors_min,
-            floors_max=floors_max,
-            floor_to_floor=floor_to_floor,
-            rng=rng,
-        )
+        kwargs = {
+            'parcel': parcel,
+            'n_buildings': n_buildings,
+            'far': far,
+            'floors_min': floors_min,
+            'floors_max': floors_max,
+            'floor_to_floor': floor_to_floor,
+            'rng': rng,
+        }
+        if min_edge_buffer is not None:
+            kwargs['min_edge_buffer'] = min_edge_buffer
+        if min_building_buffer is not None:
+            kwargs['min_building_buffer'] = min_building_buffer
+        result = generate_linear_layout(**kwargs)
     elif typology is Typology.COURTYARD:
-        result = generate_courtyard_layout(
-            parcel=parcel,
-            n_buildings=n_buildings,
-            far=far,
-            floors_min=floors_min,
-            floors_max=floors_max,
-            floor_to_floor=floor_to_floor,
-            rng=rng,
-        )
+        kwargs = {
+            'parcel': parcel,
+            'n_buildings': n_buildings,
+            'far': far,
+            'floors_min': floors_min,
+            'floors_max': floors_max,
+            'floor_to_floor': floor_to_floor,
+            'rng': rng,
+        }
+        if min_edge_buffer is not None:
+            kwargs['min_edge_buffer'] = min_edge_buffer
+        if min_building_thickness is not None:
+            kwargs['min_building_thickness'] = min_building_thickness
+        result = generate_courtyard_layout(**kwargs)
     else:
         raise NotImplementedError(f"Typology {typology.value!r} is not implemented yet.")
     

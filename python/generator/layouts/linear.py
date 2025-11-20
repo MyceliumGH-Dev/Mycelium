@@ -15,12 +15,12 @@ MIN_EDGE_BUFFER = 5.0          # meters, parcel boundary setback
 MIN_BUILDING_BUFFER = 3.0      # meters, min edge-to-edge separation
 
 
-def _get_usable_parcel(parcel: Polygon) -> Polygon:
+def _get_usable_parcel(parcel: Polygon, min_edge_buffer: float = MIN_EDGE_BUFFER) -> Polygon:
     """
     Apply edge buffer to the parcel and return the usable interior.
     Falls back to the original parcel if buffering collapses it.
     """
-    usable = parcel.buffer(-MIN_EDGE_BUFFER)
+    usable = parcel.buffer(-min_edge_buffer)
     if usable.is_empty:
         return parcel
     # In case buffer produces MultiPolygon, take union
@@ -128,6 +128,8 @@ def generate_linear_layout(
     floors_max: float,
     floor_to_floor: float,
     rng: np.random.Generator,
+    min_edge_buffer: float = MIN_EDGE_BUFFER,
+    min_building_buffer: float = MIN_BUILDING_BUFFER,
 ) -> LayoutResult:
     """
     LINEAR typology:
@@ -141,7 +143,7 @@ def generate_linear_layout(
         raise ValueError("n_buildings must be at least 1 for LINEAR typology")
 
     # --- 1) Usable interior ---------------------------------------------------
-    usable = _get_usable_parcel(parcel)
+    usable = _get_usable_parcel(parcel, min_edge_buffer)
     minx, miny, maxx, maxy = usable.bounds
 
     width = maxx - minx
@@ -159,21 +161,21 @@ def generate_linear_layout(
 
     if horizontal:
         # Bars span X, stacked along Y
-        span = width - 2 * MIN_BUILDING_BUFFER
-        stack_dim = height - 2 * MIN_BUILDING_BUFFER
+        span = width - 2 * min_building_buffer
+        stack_dim = height - 2 * min_building_buffer
         if span <= 0 or stack_dim <= 0:
             raise ValueError("Parcel too small after buffers for LINEAR layout")
 
         # Thickness per row (so rows + gaps fill the stack_dim)
-        total_gap = (n_buildings - 1) * MIN_BUILDING_BUFFER
+        total_gap = (n_buildings - 1) * min_building_buffer
         thickness = (stack_dim - total_gap) / n_buildings
         if thickness <= 0:
             raise ValueError("Not enough room for requested number of rows")
 
-        x0 = minx + MIN_BUILDING_BUFFER
-        x1 = maxx - MIN_BUILDING_BUFFER
+        x0 = minx + min_building_buffer
+        x1 = maxx - min_building_buffer
 
-        y_cursor = miny + MIN_BUILDING_BUFFER
+        y_cursor = miny + min_building_buffer
         row_polys: List[Polygon] = []
 
         for _ in range(n_buildings):
@@ -193,24 +195,24 @@ def generate_linear_layout(
             if not footprint.is_empty and footprint.area > 1e-3:
                 row_polys.append(footprint)
 
-            y_cursor = y1 + MIN_BUILDING_BUFFER
+            y_cursor = y1 + min_building_buffer
 
     else:
         # Bars span Y, stacked along X
-        span = height - 2 * MIN_BUILDING_BUFFER
-        stack_dim = width - 2 * MIN_BUILDING_BUFFER
+        span = height - 2 * min_building_buffer
+        stack_dim = width - 2 * min_building_buffer
         if span <= 0 or stack_dim <= 0:
             raise ValueError("Parcel too small after buffers for LINEAR layout")
 
-        total_gap = (n_buildings - 1) * MIN_BUILDING_BUFFER
+        total_gap = (n_buildings - 1) * min_building_buffer
         thickness = (stack_dim - total_gap) / n_buildings
         if thickness <= 0:
             raise ValueError("Not enough room for requested number of rows")
 
-        y0 = miny + MIN_BUILDING_BUFFER
-        y1 = maxy - MIN_BUILDING_BUFFER
+        y0 = miny + min_building_buffer
+        y1 = maxy - min_building_buffer
 
-        x_cursor = minx + MIN_BUILDING_BUFFER
+        x_cursor = minx + min_building_buffer
         row_polys = []
 
         for _ in range(n_buildings):
@@ -230,7 +232,7 @@ def generate_linear_layout(
             if not footprint.is_empty and footprint.area > 1e-3:
                 row_polys.append(footprint)
 
-            x_cursor = x1 + MIN_BUILDING_BUFFER
+            x_cursor = x1 + min_building_buffer
 
     if not row_polys:
         raise RuntimeError("No usable linear building footprints could be created")

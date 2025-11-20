@@ -27,6 +27,8 @@ def generate_point_layout(
     floors_max: float,
     floor_to_floor: float,
     rng: np.random.Generator,
+    min_edge_buffer: float = MIN_EDGE_BUFFER,
+    min_building_buffer: float = MIN_BUILDING_BUFFER,
 ) -> LayoutResult:
     """
     POINT typology implementation:
@@ -71,14 +73,14 @@ def generate_point_layout(
     half_prov = side_prov / 2.0
 
     # Compute a "usable" parcel with a simple fixed setback
-    usable_prov = parcel.buffer(-max(MIN_EDGE_BUFFER, half_prov))
+    usable_prov = parcel.buffer(-max(min_edge_buffer, half_prov))
     if usable_prov.is_empty:
         minx, miny, maxx, maxy = parcel.bounds
         raise RuntimeError(
             "Parcel too small after applying provisional setbacks for point towers. "
             f"Parcel: {maxx - minx:.1f}m × {maxy - miny:.1f}m, "
             f"Provisional side: {side_prov:.1f}m, "
-            f"Setback: {max(MIN_EDGE_BUFFER, half_prov):.1f}m. "
+            f"Setback: {max(min_edge_buffer, half_prov):.1f}m. "
             "Try increasing parcel size or reducing setbacks."
         )
 
@@ -105,7 +107,7 @@ def generate_point_layout(
         )
 
     # Minimum center-to-center spacing to respect edge buffer
-    center_min_spacing = side_prov + MIN_BUILDING_BUFFER
+    center_min_spacing = side_prov + min_building_buffer
 
     # Max possible columns/rows with at least the minimum spacing
     if width_centers <= 0:
@@ -233,7 +235,7 @@ def generate_point_layout(
     # -------------------------------------------------------------------------
 
     # Inner parcel for final placement
-    usable_final = parcel.buffer(-MIN_EDGE_BUFFER)
+    usable_final = parcel.buffer(-min_edge_buffer)
     if usable_final.is_empty:
         usable_final = parcel
 
@@ -252,7 +254,7 @@ def generate_point_layout(
                 min_centroid_dist = min(min_centroid_dist, dist)
         
         # Maximum building size that maintains MIN_BUILDING_BUFFER spacing
-        max_size_from_spacing = min_centroid_dist - MIN_BUILDING_BUFFER
+        max_size_from_spacing = min_centroid_dist - min_building_buffer
     else:
         # Single building - only limited by parcel
         max_size_from_spacing = float('inf')

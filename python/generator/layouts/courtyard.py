@@ -23,6 +23,8 @@ def generate_courtyard_layout(
     floors_max: float,
     floor_to_floor: float,
     rng: np.random.Generator,
+    min_edge_buffer: float = MIN_EDGE_BUFFER,
+    min_building_thickness: float = MIN_BUILDING_THICKNESS,
 ) -> LayoutResult:
     """
     COURTYARD:
@@ -32,7 +34,7 @@ def generate_courtyard_layout(
     """
 
     # --- 1) Usable interior ---------------------------------------------------
-    usable = _get_usable_parcel(parcel)
+    usable = _get_usable_parcel(parcel, min_edge_buffer)
     minx, miny, maxx, maxy = usable.bounds
 
     width = maxx - minx
@@ -44,7 +46,7 @@ def generate_courtyard_layout(
 
     # Initial guess for ring thickness as a fraction of the smaller dimension.
     # We will *reduce* this if it produces no inner courtyard.
-    thickness = max(MIN_BUILDING_THICKNESS, 0.15 * min_dim)
+    thickness = max(min_building_thickness, 0.15 * min_dim)
 
     # --- 1a) Find a thickness that yields a hollow interior -------------------
     inner = usable.buffer(-thickness)
@@ -53,7 +55,7 @@ def generate_courtyard_layout(
     # (e.g., very small parcel or very concave shape).
     attempts = 0
     max_attempts = 5
-    while inner.is_empty and attempts < max_attempts and thickness > MIN_BUILDING_THICKNESS:
+    while inner.is_empty and attempts < max_attempts and thickness > min_building_thickness:
         thickness *= 0.5
         inner = usable.buffer(-thickness)
         attempts += 1
@@ -118,12 +120,12 @@ def generate_courtyard_layout(
     )
 
 
-def _get_usable_parcel(parcel: Polygon) -> Polygon:
+def _get_usable_parcel(parcel: Polygon, min_edge_buffer: float = MIN_EDGE_BUFFER) -> Polygon:
     """
     Apply setback buffer to parcel and return the usable interior.
     Handles MultiPolygon cases by taking the largest piece.
     """
-    usable = parcel.buffer(-MIN_EDGE_BUFFER)
+    usable = parcel.buffer(-min_edge_buffer)
 
     if usable.is_empty:
         # Parcel too small for setback; use full parcel

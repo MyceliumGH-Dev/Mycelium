@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Design Tool - 3D Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Left Panel - Controls */
+        #controls {
+            width: 350px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title[style*="cursor: pointer"]:hover {
+            color: #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-hint {
+            font-size: 11px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-clear {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #ff5252;
+        }
+
+        #metrics {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .metric-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* Right Panel - Visualization */
+        #visualization {
+            flex: 1;
+            position: relative;
+            background: #87CEEB; /* Sky blue to match Three.js scene */
+        }
+
+        #canvas2d {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            cursor: crosshair;
+            z-index: 5;
+        }
+
+        #canvas3d {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #canvas3d.drawing-mode {
+            cursor: crosshair !important;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            font-size: 13px;
+            color: #333;
+            max-width: 280px;
+            z-index: 5;
+        }
+
+        .instructions h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            color: #667eea;
+        }
+
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+            line-height: 1.5;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            font-size: 16px;
+            color: #333;
+            display: none;
+            z-index: 20;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .example-parcels {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .example-btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px;
+            font-size: 12px;
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- Left Panel: Controls -->
+        <div id="controls">
+            <h1>🏗️ Generative Design</h1>
+            <p class="subtitle">Create building layouts with AI</p>
+
+            <!-- Location Section -->
+            <div class="section">
+                <div class="section-title">🌍 Location</div>
+                <div class="form-group">
+                    <label for="location-input">Search Location</label>
+                    <input type="text" id="location-input" placeholder="Address or lat,lon">
+                    <div class="input-hint">e.g., "Atlanta, GA" or "33.77,-84.39"</div>
+                </div>
+                <button class="btn-secondary" onclick="searchLocation()">📍 Find Location</button>
+                <div id="location-status" style="font-size: 12px; color: #667eea; margin-top: 8px; min-height: 20px;"></div>
+            </div>
+
+            <!-- Parcel Drawing Section -->
+            <div class="section">
+                <div class="section-title">📐 Draw Parcel</div>
+                <div id="parcel-status" style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                    <div style="font-size: 13px; color: #555; margin-bottom: 8px;">
+                        <strong>✓ Parcel ready</strong>
+                    </div>
+                    <div style="font-size: 12px; color: #888;">
+                        Click "Clear Parcel" to draw a new one
+                    </div>
+                </div>
+                <button class="btn-clear" onclick="clearParcel()">Clear Parcel</button>
+                <div style="margin-top: 12px;">
+                    <div style="font-size: 12px; font-weight: 500; color: #666; margin-bottom: 8px;">Quick examples:</div>
+                    <div class="example-parcels">
+                        <button class="example-btn" onclick="loadExampleParcel('square')">Square</button>
+                        <button class="example-btn" onclick="loadExampleParcel('rectangle')">Rectangle</button>
+                        <button class="example-btn" onclick="loadExampleParcel('l-shape')">L-Shape</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameters Section -->
+            <div class="section">
+                <div class="section-title">⚙️ Parameters</div>
+                
+                <div class="form-group">
+                    <label for="typology">Building Type</label>
+                    <select id="typology">
+                        <option value="point">Point Tower</option>
+                        <option value="linear">Linear/Slab</option>
+                        <option value="courtyard">Courtyard</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="n_buildings">Number of Buildings</label>
+                    <input type="number" id="n_buildings" value="5" min="1" max="50">
+                    <div class="input-hint">1-50 buildings</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="far">FAR (Floor Area Ratio)</label>
+                    <input type="number" id="far" value="2.5" min="0.1" max="10" step="0.1">
+                    <div class="input-hint">Target density: 0.1-10.0</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="floors_min">Floors (Min)</label>
+                    <input type="number" id="floors_min" value="4" min="1" max="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="floors_max">Floors (Max)</label>
+                    <input type="number" id="floors_max" value="12" min="1" max="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="floor_to_floor">Floor Height (m)</label>
+                    <input type="number" id="floor_to_floor" value="3.5" min="2.0" max="6.0" step="0.5">
+                    <div class="input-hint">Typical: 3.0-4.0 meters</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="seed">Random Seed</label>
+                    <input type="number" id="seed" placeholder="Leave empty for random">
+                    <div class="input-hint">For reproducible results</div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings Section -->
+            <div class="section">
+                <div class="section-title" style="cursor: pointer;" onclick="toggleAdvancedSettings()">
+                    🔧 Advanced Settings
+                    <span id="advanced-toggle" style="font-size: 12px; color: #888; margin-left: auto;">▼</span>
+                </div>
+                <div id="advanced-settings" style="display: none;">
+                    <div class="form-group">
+                        <label for="min_edge_buffer">Edge Buffer (m)</label>
+                        <input type="number" id="min_edge_buffer" placeholder="Default: 5.0" min="0" max="50" step="0.5">
+                        <div class="input-hint">Parcel boundary setback (default: 5.0m)</div>
+                    </div>
+
+                    <div class="form-group" id="min_building_buffer_group">
+                        <label for="min_building_buffer">Building Spacing (m)</label>
+                        <input type="number" id="min_building_buffer" placeholder="Default varies" min="0" max="50" step="0.5">
+                        <div class="input-hint" id="building_buffer_hint">Spacing between buildings (linear: 3.0m, point: 14.0m)</div>
+                    </div>
+
+                    <div class="form-group" id="min_building_thickness_group" style="display: none;">
+                        <label for="min_building_thickness">Building Thickness (m)</label>
+                        <input type="number" id="min_building_thickness" placeholder="Default: 6.0" min="0" max="50" step="0.5">
+                        <div class="input-hint">Minimum courtyard wall thickness (default: 6.0m)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button class="btn-primary" onclick="generateLayout()">
+                🎲 Generate Layout
+            </button>
+
+            <!-- Metrics Section -->
+            <div class="section">
+                <div class="section-title">📊 Metrics</div>
+                <div id="metrics">
+                    <div style="text-align: center; color: #999;">
+                        Generate a layout to see metrics
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: 3D Visualization -->
+        <div id="visualization">
+            <div id="canvas3d"></div>
+            
+            <div class="instructions">
+                <h3>🖱️ Controls</h3>
+                <ul>
+                    <li><strong>Click on map:</strong> Add parcel points</li>
+                    <li><strong>Click near first point:</strong> Close parcel</li>
+                    <li><strong>Left drag:</strong> Rotate view</li>
+                    <li><strong>Right drag:</strong> Pan camera</li>
+                    <li><strong>Scroll:</strong> Zoom in/out</li>
+                </ul>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #888;">
+                    💡 <strong>Tip:</strong> Enable satellite imagery! See <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">MAP_SETUP.md</code>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div style="text-align: center;">Generating layout...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js - Modern ES Module approach -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>
+
