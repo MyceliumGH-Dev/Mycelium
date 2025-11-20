@@ -567,17 +567,35 @@ function visualizeBuildings(buildings) {
     buildings.forEach((building, index) => {
         const footprint = building.footprint;
         const height = building.total_height;
+        const exteriorCoords = footprint.exterior;
+        const holeRings = footprint.holes || [];
         
-        // Create shape from footprint
+        if (!exteriorCoords || exteriorCoords.length < 3) {
+            return; // Skip invalid footprints
+        }
+        
+        // Create main shape from exterior ring
         // Backend returns [x, y] where y == world z from your parcel
         // Use (x, -y) for shape to compensate for rotateX(-π/2) negation
-        // After rotation: z_world = -y_shape = -(-y) = y
+        // After rotation: z_world = -y_shape = -(-y) = y (correct!)
         const shape = new THREE.Shape();
-        shape.moveTo(footprint[0][0], -footprint[0][1]);
-        for (let i = 1; i < footprint.length; i++) {
-            shape.lineTo(footprint[i][0], -footprint[i][1]);
+        shape.moveTo(exteriorCoords[0][0], -exteriorCoords[0][1]);
+        for (let i = 1; i < exteriorCoords.length; i++) {
+            shape.lineTo(exteriorCoords[i][0], -exteriorCoords[i][1]);
         }
-        shape.lineTo(footprint[0][0], -footprint[0][1]);
+        shape.lineTo(exteriorCoords[0][0], -exteriorCoords[0][1]);
+        
+        // Add holes (courtyard voids)
+        holeRings.forEach(ring => {
+            if (!ring || ring.length < 3) return;
+            const holePath = new THREE.Path();
+            holePath.moveTo(ring[0][0], -ring[0][1]);
+            for (let i = 1; i < ring.length; i++) {
+                holePath.lineTo(ring[i][0], -ring[i][1]);
+            }
+            holePath.lineTo(ring[0][0], -ring[0][1]);
+            shape.holes.push(holePath);
+        });
         
         // Extrude settings
         const extrudeSettings = {

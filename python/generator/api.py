@@ -23,7 +23,7 @@ def generate_layout_from_location(
     min_edge_buffer: Optional[float] = None,
     min_building_buffer: Optional[float] = None,
     min_building_thickness: Optional[float] = None,
-) -> Dict[str, Any]:
+) -> LayoutResult:
     """
     Main entry-point for generating building layouts.
     
@@ -52,15 +52,9 @@ def generate_layout_from_location(
         
     Returns
     -------
-    Dict[str, Any]
-        Dictionary containing:
-        - buildings: list of building dicts with footprint, centroid, length, 
-                     width, floors, floor_height, total_height
-        - metrics: dict with parcel_area, target_gfa, actual_gfa, target_far,
-                   actual_far, scr, n_buildings, density, avg_floors
-        - typology: string name of the typology used
-        
-    Note: 'density' is computed automatically based on building spacing.
+    LayoutResult
+        Object containing parcel, buildings list, metrics, and typology.
+        Call .to_dict() to get JSON-serializable dictionary format.
     """
 
     if isinstance(structure_type, Typology):
@@ -123,5 +117,4 @@ def generate_layout_from_location(
     else:
         raise NotImplementedError(f"Typology {typology.value!r} is not implemented yet.")
     
-    # Convert to dict format with computed metrics including density
-    return result.to_dict()
+    return result

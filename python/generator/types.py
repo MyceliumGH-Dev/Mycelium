@@ -62,8 +62,17 @@ class LayoutResult:
             # Compute length and width from footprint using minimum rotated rectangle
             length, width = self._compute_length_width(b.footprint)
             
+            # Serialize footprint with holes support (for courtyard buildings)
+            footprint = b.footprint
+            exterior = list(footprint.exterior.coords)
+            holes = [list(r.coords) for r in footprint.interiors]
+            footprint_payload = {
+                "exterior": exterior,
+                "holes": holes,
+            }
+            
             buildings_list.append({
-                "footprint": b.footprint,
+                "footprint": footprint_payload,
                 "centroid": b.centroid,
                 "length": length,
                 "width": width,

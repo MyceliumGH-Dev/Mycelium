@@ -22,19 +22,22 @@ def main() -> None:
 
     parcel = Polygon(parcel_vertices)
 
+    # Get metrics as dict for display
+    metrics = alt.to_dict()["metrics"]
+    
     print("=== Parcel metrics ===")
-    for k, v in alt["metrics"].items():
+    for k, v in metrics.items():
         print(f"  {k}: {v}")
 
     print("\n=== Buildings ===")
-    for i, b in enumerate(alt["buildings"], start=1):
-        cx, cy = b["centroid"]
+    for i, b in enumerate(alt.buildings, start=1):
+        cx, cy = b.centroid
         print(f"Building {i}:")
         print(f"  centroid        : ({cx:.2f}, {cy:.2f})")
-        print(f"  length x width  : {b['length']:.2f} m x {b['width']:.2f} m")
-        print(f"  floors          : {b['floors']}")
-        print(f"  floor height    : {b['floor_height']:.2f} m")
-        print(f"  total height    : {b['total_height']:.2f} m")
+        print(f"  floors          : {b.floors}")
+        print(f"  floor height    : {b.floor_height:.2f} m")
+        print(f"  total height    : {b.total_height:.2f} m")
+        print(f"  footprint area  : {b.footprint.area:.2f} m²")
 
     # Visualise with matplotlib
     plot_alternative(parcel, alt)

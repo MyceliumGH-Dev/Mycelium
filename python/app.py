@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from shapely.geometry import Polygon
 import uvicorn
 import os
 
@@ -79,9 +80,15 @@ class GenerateRequest(BaseModel):
     )
 
 
+class FootprintResponse(BaseModel):
+    """Response model for building footprint with holes support."""
+    exterior: List[Tuple[float, float]]
+    holes: List[List[Tuple[float, float]]]
+
+
 class BuildingResponse(BaseModel):
     """Response model for a single building."""
-    footprint: List[Tuple[float, float]]
+    footprint: FootprintResponse
     centroid: Tuple[float, float]
     length: float
     width: float
@@ -117,9 +124,23 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-def serialize_polygon(polygon) -> List[Tuple[float, float]]:
-    """Convert Shapely Polygon to list of coordinate tuples."""
-    return list(polygon.exterior.coords[:-1])  # Exclude duplicate closing point
+def serialize_polygon(polygon) -> Dict[str, Any]:
+    """
+    Convert Shapely Polygon to dict with exterior and holes.
+    
+    Returns:
+        {
+            "exterior": [[x, y], ...],  # exterior ring coordinates
+            "holes": [[[x, y], ...], ...]  # list of hole rings (for courtyards)
+        }
+    """
+    exterior = list(polygon.exterior.coords[:-1])  # Exclude duplicate closing point
+    holes = [list(interior.coords[:-1]) for interior in polygon.interiors]
+    
+    return {
+        "exterior": exterior,
+        "holes": holes
+    }
 
 
 @app.get("/")
@@ -193,8 +214,8 @@ async def generate_layout(request: GenerateRequest):
                 detail="floors_min must be less than or equal to floors_max"
             )
         
-        # Generate layout
-        result = generate_layout_from_location(
+        # Generate layout - returns LayoutResult object
+        layout_result = generate_layout_from_location(
             parcel_vertices=request.parcel_vertices,
             structure_type=request.structure_type,
             n_buildings=request.n_buildings,
@@ -208,23 +229,46 @@ async def generate_layout(request: GenerateRequest):
             min_building_thickness=request.min_building_thickness,
         )
         
-        # Convert Shapely polygons to coordinate lists
+        # Serialize at API boundary: work directly with LayoutResult object
         buildings_serialized = []
-        for building in result["buildings"]:
+        for building in layout_result.buildings:
+            # Compute length and width from footprint
+            length, width = layout_result._compute_length_width(building.footprint)
+            
             buildings_serialized.append({
-                "footprint": serialize_polygon(building["footprint"]),
-                "centroid": building["centroid"],
-                "length": building["length"],
-                "width": building["width"],
-                "floors": building["floors"],
-                "floor_height": building["floor_height"],
-                "total_height": building["total_height"],
+                "footprint": serialize_polygon(building.footprint),
+                "centroid": building.centroid,
+                "length": length,
+                "width": width,
+                "floors": building.floors,
+                "floor_height": building.floor_height,
+                "total_height": building.total_height,
             })
+        
+        # Compute metrics from LayoutResult
+        parcel_area = layout_result.parcel.area
+        total_footprint_area = sum(b.footprint.area for b in layout_result.buildings)
+        total_gfa = sum(b.footprint.area * b.floors for b in layout_result.buildings)
+        actual_far = total_gfa / parcel_area if parcel_area > 0 else 0.0
+        scr = total_footprint_area / parcel_area if parcel_area > 0 else 0.0
+        avg_floors = sum(b.floors for b in layout_result.buildings) / len(layout_result.buildings) if layout_result.buildings else 0.0
+        
+        metrics = {
+            "parcel_area": parcel_area,
+            "target_gfa": layout_result.far * parcel_area,
+            "actual_gfa": total_gfa,
+            "target_far": layout_result.far,
+            "actual_far": actual_far,
+            "scr": scr,
+            "n_buildings": len(layout_result.buildings),
+            "density": layout_result.density,
+            "avg_floors": avg_floors,
+        }
         
         return {
             "buildings": buildings_serialized,
-            "metrics": result["metrics"],
-            "typology": result["typology"]
+            "metrics": metrics,
+            "typology": layout_result.typology.value
         }
         
     except ValueError as e:

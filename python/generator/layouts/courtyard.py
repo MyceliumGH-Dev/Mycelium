@@ -115,7 +115,7 @@ def generate_courtyard_layout(
         parcel=parcel,
         typology=Typology.O,  # O-shaped courtyard typology
         buildings=[building],
-        far=far_actual,
+        far=far,  # target FAR (input parameter)
         density=density,
     )
 

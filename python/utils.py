@@ -54,17 +54,24 @@ def _plot_polygon(ax, poly: BaseGeometry, filled: bool = False, alpha: float = 0
         ax.plot(x, y)
 
 
-def plot_alternative(parcel: Polygon, alternative: dict) -> None:
-    """Simple matplotlib preview of a generated alternative."""
+def plot_alternative(parcel: Polygon, alternative) -> None:
+    """
+    Simple matplotlib preview of a generated alternative.
+    
+    Parameters
+    ----------
+    parcel : Polygon
+        The parcel boundary.
+    alternative : LayoutResult
+        The generated layout result containing buildings.
+    """
     fig, ax = plt.subplots()
 
     _plot_polygon(ax, parcel, filled=False)
 
-    # Plot each building footprint from the new schema
-    buildings = alternative.get("buildings", [])
-    for b in buildings:
-        fp = b.get("footprint")
-        _plot_polygon(ax, fp, filled=True, alpha=0.4)
+    # Plot each building footprint
+    for building in alternative.buildings:
+        _plot_polygon(ax, building.footprint, filled=True, alpha=0.4)
 
     ax.set_aspect("equal", "box")
     ax.set_xlabel("X [m]")
