@@ -23,27 +23,6 @@ let currentLocation = {
 // COORDINATE CONVERSION UTILITIES
 // ============================================================================
 
-// Convert lat/lon to Web Mercator (meters)
-function latLonToMeters(lat, lon) {
-    const earthRadius = 6378137; // meters
-    const x = lon * (Math.PI / 180) * earthRadius;
-    const y = Math.log(Math.tan((90 + lat) * (Math.PI / 360))) * earthRadius;
-    return { x, y };
-}
-
-// Convert meters to lat/lon
-function metersToLatLon(x, y) {
-    const earthRadius = 6378137;
-    const lon = (x / earthRadius) * (180 / Math.PI);
-    const lat = (2 * Math.atan(Math.exp(y / earthRadius)) - Math.PI / 2) * (180 / Math.PI);
-    return { lat, lon };
-}
-
-// Calculate meters per pixel at given latitude and zoom
-function metersPerPixel(lat, zoom) {
-    return (40075016.686 * Math.abs(Math.cos(lat * Math.PI / 180))) / Math.pow(2, zoom + 8);
-}
-
 // Get tile coordinates for lat/lon at zoom level
 function latLonToTile(lat, lon, zoom) {
     const n = Math.pow(2, zoom);
@@ -315,10 +294,10 @@ function onSceneClick(event) {
         // Check if clicking near first point to close shape
         if (currentParcel.length >= 3) {
             const first = currentParcel[0];
-            // Convert first point from 2D [x,y] to 3D [x,z] for distance calculation
+            // Distance calculation in world coordinates
             const dist = Math.sqrt(
                 Math.pow(point.x - first[0], 2) + 
-                Math.pow(point.z - (-first[1]), 2)
+                Math.pow(point.z - first[1], 2)
             );
             
             if (dist < 5) { // 5 meter tolerance
@@ -337,13 +316,13 @@ function onSceneClick(event) {
         }
         
         // Add point to parcel
-        // Note: Negate Z to match 2D coordinate system (Z points opposite in 3D)
-        currentParcel.push([point.x, -point.z]);
+        // Store parcel in true world-plane coords: [x, z]
+        currentParcel.push([point.x, point.z]);
         addParcelMarker(point.x, point.z);
         updateParcelLines();
         updateParcelStatus();
         
-        console.log(`Point added: 3D(${point.x.toFixed(2)}, ${point.z.toFixed(2)}) -> 2D(${point.x.toFixed(2)}, ${(-point.z).toFixed(2)})`);
+        console.log(`Point added: World(${point.x.toFixed(2)}, ${point.z.toFixed(2)})`);
     }
 }
 
@@ -374,10 +353,10 @@ function updateParcelLines() {
     
     if (currentParcel.length < 2) return;
     
-    // Create line geometry (convert 2D [x,y] to 3D [x, height, z])
-    const points = currentParcel.map(p => new THREE.Vector3(p[0], 0.2, -p[1]));
+    // Create line geometry from world coordinates [x, z]
+    const points = currentParcel.map(p => new THREE.Vector3(p[0], 0.2, p[1]));
     if (!isDrawingParcel) {
-        points.push(new THREE.Vector3(currentParcel[0][0], 0.2, -currentParcel[0][1]));
+        points.push(new THREE.Vector3(currentParcel[0][0], 0.2, currentParcel[0][1]));
     }
     
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -503,9 +482,9 @@ function loadExampleParcel(type) {
     
     isDrawingParcel = false;
     
-    // Add markers for each point (convert 2D [x,y] to 3D [x,z])
-    currentParcel.forEach((p, i) => {
-        addParcelMarker(p[0], -p[1]); // Negate Y to get Z coordinate
+    // Add markers for each point in world coordinates
+    currentParcel.forEach((p) => {
+        addParcelMarker(p[0], p[1]);
     });
     
     updateParcelLines();
@@ -532,7 +511,7 @@ function updateParcelOutline3D() {
     if (currentParcel.length < 3) return;
     
     // Add parcel ground plane with semi-transparent fill
-    // Convert 2D [x,y] to shape coordinates (negating Y for proper 3D orientation)
+    // currentParcel is [x, z]; for the shape, use (x, -z)
     const shape = new THREE.Shape();
     shape.moveTo(currentParcel[0][0], -currentParcel[0][1]);
     for (let i = 1; i < currentParcel.length; i++) {
@@ -552,9 +531,9 @@ function updateParcelOutline3D() {
     parcelOutline.position.y = 0.1; // Slightly above ground
     scene.add(parcelOutline);
     
-    // Center camera on parcel (convert 2D to 3D)
+    // Center camera on parcel
     const center = getCentroid(currentParcel);
-    controls.target.set(center[0], 0, -center[1]);
+    controls.target.set(center[0], 0, center[1]);
     
     console.log(`✓ Parcel outline updated (${currentParcel.length} points)`);
 }
@@ -590,14 +569,15 @@ function visualizeBuildings(buildings) {
         const height = building.total_height;
         
         // Create shape from footprint
-        // Backend returns coordinates already in backend space [x, y_backend]
-        // which corresponds to 3D [x, -y_backend] for Z-axis
+        // Backend returns [x, y] where y == world z from your parcel
+        // Use (x, -y) for shape to compensate for rotateX(-π/2) negation
+        // After rotation: z_world = -y_shape = -(-y) = y
         const shape = new THREE.Shape();
-        shape.moveTo(footprint[0][0], footprint[0][1]);
+        shape.moveTo(footprint[0][0], -footprint[0][1]);
         for (let i = 1; i < footprint.length; i++) {
-            shape.lineTo(footprint[i][0], footprint[i][1]);
+            shape.lineTo(footprint[i][0], -footprint[i][1]);
         }
-        shape.lineTo(footprint[0][0], footprint[0][1]);
+        shape.lineTo(footprint[0][0], -footprint[0][1]);
         
         // Extrude settings
         const extrudeSettings = {
@@ -648,9 +628,9 @@ async function generateLayout() {
         return;
     }
     
-    // Convert from frontend coordinates (x, y_screen) to backend (x, y_world)
-    // where y_world = -y_screen = z_world
-    const parcelForBackend = currentParcel.map(([x, y]) => [x, -y]);
+    // currentParcel is already in world coordinates [x, z]
+    // Send directly to backend as [x, y] where backend y = world z
+    const parcelForBackend = currentParcel.map(([x, z]) => [x, z]);
     
     // Get parameters from form
     const typology = document.getElementById('typology').value;
