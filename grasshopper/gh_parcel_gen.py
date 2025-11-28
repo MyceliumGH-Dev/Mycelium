@@ -8,6 +8,8 @@ Setback : float
     Distance from parcel edge to building face.
 BuildingDepth : float
     Depth of the building wing.
+MinFootprintArea : float
+    Minimum buildable footprint area (after setback) in m². Parcels smaller than this will be skipped.
 GenerateFloorSlabs : bool
     If True, generates individual floor slab geometry (may overlap with Masses).
 Floors_min : float
@@ -18,6 +20,8 @@ BuildingTypes : list[str]
     List of allowed building types: 'courtyard', 'linear', 'point', 'l-shape', 'u-shape'.
 NumParks : int
     Number of parcels to reserve as parks.
+FloorHeight : float
+    Floor-to-floor height in meters (default: 3.2).
 Seed : int
     Random seed.
 
@@ -31,6 +35,8 @@ Streets : list[Rhino.Geometry.Curve]
 FloorSlabs : list[Rhino.Geometry.Brep]
 Parks : list[Rhino.Geometry.Curve]
 Trees : list[Rhino.Geometry.Brep]
+Parcels : list[Rhino.Geometry.Curve]
+    Building parcels (excludes parks)
 """
 
 import math
@@ -96,8 +102,8 @@ def generate_perimeter_block(curve, setback, depth):
             # Parcel is large enough for a courtyard
             inner_offsets = outer_curve.Offset(plane, -depth, 1e-3, rg.CurveOffsetCornerStyle.Sharp)
         else:
-            # Too small for courtyard - skip inner offset
-            inner_offsets = None
+            # Too small for courtyard - fall back to point block
+            return generate_point_block(curve, setback, depth)
         
         if inner_offsets:
             # We have potential courtyards
@@ -434,7 +440,8 @@ def generate_u_shape(curve, setback, depth, rng):
     if not buildable.IsClosed:
         buildable.MakeClosed(1e-3)
     
-    # 2. Get OBB
+    # 2. Check if parcel is large enough for U-shape
+    # U-shape needs 3 wings, minimum dimensions needed
     success, obb_plane = buildable.TryGetPlane()
     if not success: obb_plane = rg.Plane.WorldXY
     
@@ -442,6 +449,16 @@ def generate_u_shape(curve, setback, depth, rng):
     c_local = buildable.DuplicateCurve()
     c_local.Transform(xform)
     bbox = c_local.GetBoundingBox(True)
+    
+    width = bbox.Max.X - bbox.Min.X
+    height = bbox.Max.Y - bbox.Min.Y
+    min_dimension = min(width, height)
+    
+    # U-shape needs room for 2 parallel wings plus middle opening
+    # Minimum: 3*depth (wing + opening + wing)
+    if min_dimension < 3 * depth:
+        # Too small for U-shape - fall back to linear block
+        return generate_linear_block(curve, setback, depth)
     
     min_x, max_x = bbox.Min.X, bbox.Max.X
     min_y, max_y = bbox.Min.Y, bbox.Max.Y
@@ -597,7 +614,7 @@ def subdivide_parcel(curve, depth, min_area, street_width, rng):
 
 # --- main -----------------------------------------------------------------
 
-def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Divisions, Setback, BuildingDepth, GenerateFloorSlabs, BuildingTypes, NumParks):
+def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinFootprintArea, Divisions, Setback, BuildingDepth, GenerateFloorSlabs, BuildingTypes, NumParks, FloorHeight):
     Footprints = []
     Masses = []
     Heights = []
@@ -605,33 +622,35 @@ def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Div
     FloorSlabs = []
     Parks = []
     Trees = []
+    Parcels = []  # Building parcels (excluding parks)
     Metrics = ""
 
     if Boundary is None:
-        return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees
+        return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees, Parcels
 
     boundary_curve = coerce_curve(Boundary)
     if boundary_curve is None:
         Metrics = "Input 'Boundary' is not a valid Curve."
-        return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees
+        return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees, Parcels
 
     rng = random.Random(Seed)
     
     # handle defaults for optional inputs
     if Divisions is None: Divisions = 0
     if StreetWidth is None: StreetWidth = 5.0
-    if MinParcelArea is None: MinParcelArea = 100.0
+    if MinFootprintArea is None: MinFootprintArea = 100.0
     if Setback is None: Setback = 3.0
     if BuildingDepth is None: BuildingDepth = 12.0
     if GenerateFloorSlabs is None: GenerateFloorSlabs = False
     if BuildingTypes is None or len(BuildingTypes) == 0: BuildingTypes = ["courtyard"]
     if NumParks is None: NumParks = 0
+    if FloorHeight is None: FloorHeight = 3.2
     
     # Normalize types to lowercase
     allowed_types = [t.lower() for t in BuildingTypes]
 
     # 1. Subdivide Parcel
-    parcels = subdivide_parcel(boundary_curve, Divisions, MinParcelArea, StreetWidth, rng)
+    parcels = subdivide_parcel(boundary_curve, Divisions, MinFootprintArea, StreetWidth, rng)
     
     # Calculate Streets (Original - Parcels)
     # We use a tolerance slightly larger than model tolerance
@@ -658,10 +677,28 @@ def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Div
             park_trees = generate_trees(p_curve, rng)
             Trees.extend(park_trees)
             continue
-            
-        p_area = parcel_area_from_curve(p_curve)
-        if p_area < MinParcelArea:
-            continue
+        
+        # Add to building parcels
+        Parcels.append(p_curve)
+        
+        # Check minimum footprint area (buildable area after setback)
+        # This is more accurate than checking raw parcel area
+        plane = rg.Plane.WorldXY
+        if p_curve.ClosedCurveOrientation(plane) == rg.CurveOrientation.Clockwise:
+            p_curve.Reverse()
+        
+        buildable_offsets = p_curve.Offset(plane, -Setback, 1e-3, rg.CurveOffsetCornerStyle.Sharp)
+        if not buildable_offsets:
+            continue  # No buildable area after setback
+        
+        buildable_area = 0.0
+        for bo in buildable_offsets:
+            amp_b = rg.AreaMassProperties.Compute(bo)
+            if amp_b:
+                buildable_area += amp_b.Area
+        
+        if buildable_area < MinFootprintArea:
+            continue  # Footprint too small
             
         # Pick a random type
         b_type = rng.choice(allowed_types)
@@ -687,8 +724,7 @@ def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Div
             floors_min = max(1.0, Floors_min)
             floors_max = max(floors_min, Floors_max)
             avg_floors = rng.uniform(floors_min, floors_max)
-            floor_to_floor = 3.2
-            height = avg_floors * floor_to_floor
+            height = avg_floors * FloorHeight
             
             Heights.extend([height] * len(block_footprints))
 
@@ -798,6 +834,6 @@ def main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Div
 
     Metrics = "\n".join(lines)
     
-    return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees
+    return Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees, Parcels
 
-Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees = main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinParcelArea, Divisions, Setback, BuildingDepth, GenerateFloorSlabs, BuildingTypes, NumParks)
+Footprints, Masses, Heights, Metrics, Streets, FloorSlabs, Parks, Trees, Parcels = main(Boundary, Floors_min, Floors_max, Seed, StreetWidth, MinFootprintArea, Divisions, Setback, BuildingDepth, GenerateFloorSlabs, BuildingTypes, NumParks, FloorHeight)
