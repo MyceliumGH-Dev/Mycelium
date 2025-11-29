@@ -34,8 +34,14 @@ namespace FormFlux.Core
                     checkPlane = Plane.WorldXY;
 
                 var bbox = outerCurve.GetBoundingBox(checkPlane);
-                // Check removed to allow smaller courtyards or natural fallback
-
+                double minDim = Math.Min(bbox.Max.X - bbox.Min.X, bbox.Max.Y - bbox.Min.Y);
+                
+                // Enforce minimum courtyard size (courtyard depth > 0.5 * building depth)
+                if (minDim < 2.5 * depth)
+                {
+                    // Too small for courtyard, return empty to trigger fallback
+                    continue; 
+                }
 
                 // Offset for building depth (create courtyard)
                 var innerOffsets = GeometryHelpers.OffsetCurve(outerCurve, -depth, plane);

@@ -304,7 +304,16 @@ namespace FormFlux
                         // Courtyard/perimeter block - returns tuple with courtyards
                         var result = BuildingGenerators.GeneratePerimeterBlock(pCurve, currentSetback, currentDepth);
                         blockFootprints = result.Item1;
-                        courtyardInteriors = result.Item2;
+                        
+                        // Fallback to Linear if Courtyard generation failed (e.g. too small)
+                        if (blockFootprints.Count == 0)
+                        {
+                            blockFootprints = BuildingGenerators.GenerateLinearBlock(pCurve, currentSetback, currentDepth);
+                        }
+                        else
+                        {
+                            courtyardInteriors = result.Item2;
+                        }
                         break;
                 }
 
@@ -332,16 +341,6 @@ namespace FormFlux
                 if (courtyardInteriors != null && courtyardInteriors.Count > 0)
                 {
                     courtyards.AddRange(courtyardInteriors);
-                }
-                
-                // Generate trees in courtyards (if enabled in tree config)
-                if (generateInCourtyards && courtyardInteriors != null && courtyardInteriors.Count > 0)
-                {
-                    foreach (var courtyard in courtyardInteriors)
-                    {
-                        var courtyardTrees = TreeGenerator.GenerateTrees(courtyard, rng, treeDensity, minTreeDiameter, maxTreeDiameter);
-                        trees.AddRange(courtyardTrees);
-                    }
                 }
 
                 // Random height based on selected config
