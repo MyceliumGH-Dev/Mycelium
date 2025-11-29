@@ -15,7 +15,9 @@ namespace FormFlux.Core
         /// <param name="parkCurve">Boundary curve for park/courtyard</param>
         /// <param name="rng">Random number generator</param>
         /// <param name="densityPercent">Tree density as percentage (0-100). 100% = maximum density (1 tree per 25m²)</param>
-        public static List<Brep> GenerateTrees(Curve parkCurve, Random rng, double densityPercent = 100.0)
+        /// <param name="minDiameter">Minimum tree diameter in meters</param>
+        /// <param name="maxDiameter">Maximum tree diameter in meters</param>
+        public static List<Brep> GenerateTrees(Curve parkCurve, Random rng, double densityPercent = 100.0, double minDiameter = 2.0, double maxDiameter = 5.0)
         {
             var trees = new List<Brep>();
 
@@ -24,6 +26,10 @@ namespace FormFlux.Core
 
             // Clamp percentage to 0-100
             densityPercent = Math.Max(0, Math.Min(100, densityPercent));
+            
+            // Ensure valid diameter range
+            minDiameter = Math.Max(0.1, minDiameter);
+            maxDiameter = Math.Max(minDiameter, maxDiameter);
             
             double area = GeometryHelpers.GetCurveArea(parkCurve);
             // Base density: 1 tree per 25m² at 100%
@@ -60,8 +66,10 @@ namespace FormFlux.Core
                     var xformBack = Transform.PlaneToPlane(Plane.WorldXY, plane);
                     ptLocal.Transform(xformBack);
 
-                    // Random radius (1.0 to 2.5m - diameter 2-5m)
-                    double radius = rng.NextDouble() * 1.5 + 1.0;
+                    // Random radius based on min/max diameter
+                    double minRadius = minDiameter / 2.0;
+                    double maxRadius = maxDiameter / 2.0;
+                    double radius = rng.NextDouble() * (maxRadius - minRadius) + minRadius;
 
                     // Center raised by radius (sits on ground)
                     Point3d center = ptLocal + new Vector3d(0, 0, radius);

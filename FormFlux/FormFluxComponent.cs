@@ -29,12 +29,13 @@ namespace FormFlux
             pManager.AddNumberParameter("StreetWidth", "SW", "Width of streets (m)", GH_ParamAccess.item, 2.0);
             pManager.AddIntegerParameter("BuildingTypes", "Types", "Allowed building types: 0=courtyard, 1=linear, 2=point, 3=l-shape, 4=u-shape", GH_ParamAccess.list);
             pManager.AddIntegerParameter("NumParks", "Parks", "Number of park parcels", GH_ParamAccess.item, 2);
-            pManager.AddNumberParameter("TreeDensity", "TDens", "Tree density percentage (0-100%). 100% = maximum density", GH_ParamAccess.item, 100.0);
             pManager.AddBooleanParameter("GenerateFloorSlabs", "Slabs", "Generate individual floor slabs",  GH_ParamAccess.item, false);
+            pManager.AddTextParameter("Trees", "Trees", "Tree configuration from Tree Config component (optional)", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Seed", "Seed", "Random seed", GH_ParamAccess.item, 0);
 
             // Set defaults for optional lists
             pManager[9].Optional = true; // BuildingTypes
+            pManager[12].Optional = true; // Trees
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -45,6 +46,7 @@ namespace FormFlux
             pManager.AddCurveParameter("Streets", "Str", "Street geometry", GH_ParamAccess.list);
             pManager.AddBrepParameter("FloorSlabs", "FS", "Individual floor slabs", GH_ParamAccess.list);
             pManager.AddCurveParameter("Parks", "P", "Park boundaries", GH_ParamAccess.list);
+            pManager.AddCurveParameter("Courtyards", "Court", "Courtyard boundaries (for tree generation)", GH_ParamAccess.list);
             pManager.AddBrepParameter("Trees", "T", "Tree spheres", GH_ParamAccess.list);
             pManager.AddCurveParameter("Parcels", "Parc", "Building parcel boundaries", GH_ParamAccess.list);
             pManager.AddTextParameter("Metrics", "Met", "Area and unit metrics", GH_ParamAccess.item);
@@ -64,9 +66,15 @@ namespace FormFlux
             double streetWidth = 5.0;
             List<int> buildingTypeIndices = new List<int>();
             int numParks = 0;
-            double treeDensity = 100.0;
             bool generateFloorSlabs = false;
+            string treeConfig = null;
             int seed = 0;
+
+            // Default tree parameters
+            double treeDensity = 100.0;
+            double minTreeDiameter = 2.0;
+            double maxTreeDiameter = 5.0;
+            bool generateInCourtyards = true;
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref setback);
@@ -79,9 +87,29 @@ namespace FormFlux
             DA.GetData(8, ref streetWidth);
             DA.GetDataList(9, buildingTypeIndices);
             DA.GetData(10, ref numParks);
-            DA.GetData(11, ref treeDensity);
-            DA.GetData(12, ref generateFloorSlabs);
+            DA.GetData(11, ref generateFloorSlabs);
+            bool hasTreeConfig = DA.GetData(12, ref treeConfig);
             DA.GetData(13, ref seed);
+
+            // Parse tree configuration if provided
+            if (hasTreeConfig && !string.IsNullOrEmpty(treeConfig))
+            {
+                try
+                {
+                    var parts = treeConfig.Split('|');
+                    if (parts.Length == 4)
+                    {
+                        treeDensity = double.Parse(parts[0]);
+                        minTreeDiameter = double.Parse(parts[1]);
+                        maxTreeDiameter = double.Parse(parts[2]);
+                        generateInCourtyards = bool.Parse(parts[3]);
+                    }
+                }
+                catch
+                {
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Invalid tree configuration format");
+                }
+            }
 
             // Map building type indices to names
             // 0=courtyard, 1=linear, 2=point, 3=l-shape, 4=u-shape
@@ -114,6 +142,7 @@ namespace FormFlux
             var streets = new List<Curve>();
             var floorSlabs = new List<Brep>();
             var parks = new List<Curve>();
+            var courtyards = new List<Curve>();
             var trees = new List<Brep>();
             var parcels = new List<Curve>();
 
@@ -157,7 +186,8 @@ namespace FormFlux
                 if (parkIndices.Contains(i))
                 {
                     parks.Add(pCurve);
-                    var parkTrees = TreeGenerator.GenerateTrees(pCurve, rng, treeDensity);
+                    // Generate trees in parks
+                    var parkTrees = TreeGenerator.GenerateTrees(pCurve, rng, treeDensity, minTreeDiameter, maxTreeDiameter);
                     trees.AddRange(parkTrees);
                     continue;
                 }
@@ -218,12 +248,18 @@ namespace FormFlux
 
                 footprints.AddRange(blockFootprints);
                 
-                // Generate trees in courtyards
+                // Collect courtyard boundaries for output
                 if (courtyardInteriors != null && courtyardInteriors.Count > 0)
+                {
+                    courtyards.AddRange(courtyardInteriors);
+                }
+                
+                // Generate trees in courtyards (if enabled in tree config)
+                if (generateInCourtyards && courtyardInteriors != null && courtyardInteriors.Count > 0)
                 {
                     foreach (var courtyard in courtyardInteriors)
                     {
-                        var courtyardTrees = TreeGenerator.GenerateTrees(courtyard, rng, treeDensity);
+                        var courtyardTrees = TreeGenerator.GenerateTrees(courtyard, rng, treeDensity, minTreeDiameter, maxTreeDiameter);
                         trees.AddRange(courtyardTrees);
                     }
                 }
@@ -300,9 +336,10 @@ namespace FormFlux
             DA.SetDataList(3, streets);
             DA.SetDataList(4, floorSlabs);
             DA.SetDataList(5, parks);
-            DA.SetDataList(6, trees);
-            DA.SetDataList(7, parcels);
-            DA.SetData(8, metrics);
+            DA.SetDataList(6, courtyards);
+            DA.SetDataList(7, trees);
+            DA.SetDataList(8, parcels);
+            DA.SetData(9, metrics);
         }
 
         protected override Bitmap Icon => Properties.Resources.icon_24x24;

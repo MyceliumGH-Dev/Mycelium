@@ -30,6 +30,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Icons\FormFlux.png" />
     <EmbeddedResource Include="Icons\FluxTemplate.png" />
+    <EmbeddedResource Include="Icons\FluxTree.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,4 +40,3 @@
   </ItemGroup>
 
 </Project>
-
