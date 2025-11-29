@@ -70,5 +70,47 @@ namespace FormFlux.Properties {
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
+
+        internal static System.Drawing.Bitmap FluxCourtyard {
+            get {
+                object obj = ResourceManager.GetObject("FluxCourtyard", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        internal static System.Drawing.Bitmap FluxLinear {
+            get {
+                object obj = ResourceManager.GetObject("FluxLinear", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        internal static System.Drawing.Bitmap FluxPoint {
+            get {
+                object obj = ResourceManager.GetObject("FluxPoint", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        internal static System.Drawing.Bitmap FluxL {
+            get {
+                object obj = ResourceManager.GetObject("FluxL", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        internal static System.Drawing.Bitmap FluxU {
+            get {
+                object obj = ResourceManager.GetObject("FluxU", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        internal static System.Drawing.Bitmap FluxTall {
+            get {
+                object obj = ResourceManager.GetObject("FluxTall", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
     }
 }

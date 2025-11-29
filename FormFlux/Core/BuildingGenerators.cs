@@ -34,16 +34,8 @@ namespace FormFlux.Core
                     checkPlane = Plane.WorldXY;
 
                 var bbox = outerCurve.GetBoundingBox(checkPlane);
-                double minDim = Math.Min(bbox.Max.X - bbox.Min.X, bbox.Max.Y - bbox.Min.Y);
-                double minCourtyard = depth;
-                double requiredWidth = 2 * depth + minCourtyard;
+                // Check removed to allow smaller courtyards or natural fallback
 
-                if (minDim <= requiredWidth)
-                {
-                    // Too small for courtyard - fallback to point block
-                    var pointFootprints = GeneratePointBlock(parcel, setback, depth);
-                    return (pointFootprints, new List<Curve>());
-                }
 
                 // Offset for building depth (create courtyard)
                 var innerOffsets = GeometryHelpers.OffsetCurve(outerCurve, -depth, plane);
@@ -357,6 +349,62 @@ namespace FormFlux.Core
             }
 
             return final;
+        }
+        /// <summary>
+        /// Generate tall building (rectangular tower)
+        /// </summary>
+        public static List<Curve> GenerateTallBuilding(Curve parcel, double setback, double depth)
+        {
+            var footprints = new List<Curve>();
+            var plane = Plane.WorldXY;
+
+            // Offset for setback
+            var buildableOffsets = GeometryHelpers.OffsetCurve(parcel, -setback, plane);
+            if (buildableOffsets == null || buildableOffsets.Length == 0)
+                return footprints;
+
+            foreach (var buildableCurve in buildableOffsets)
+            {
+                if (!buildableCurve.IsClosed)
+                    buildableCurve.MakeClosed(0.001);
+
+                // Get oriented bounding box
+                if (!buildableCurve.TryGetPlane(out var obbPlane))
+                    obbPlane = Plane.WorldXY;
+
+                var xform = Transform.PlaneToPlane(obbPlane, Plane.WorldXY);
+                var curveLocal = buildableCurve.DuplicateCurve();
+                curveLocal.Transform(xform);
+                var bbox = curveLocal.GetBoundingBox(true);
+
+                var center = bbox.Center;
+                double width = bbox.Max.X - bbox.Min.X;
+                double height = bbox.Max.Y - bbox.Min.Y;
+
+                // Create a rectangular tower footprint (smaller than full buildable area)
+                // Use 40% of width and height, but ensure it's at least 'depth' wide
+                double towerWidth = Math.Max(depth, width * 0.4);
+                double towerHeight = Math.Max(depth, height * 0.4);
+
+                // Clamp to max available size
+                towerWidth = Math.Min(towerWidth, width);
+                towerHeight = Math.Min(towerHeight, height);
+
+                var rect = new Rectangle3d(Plane.WorldXY,
+                    new Point3d(center.X - towerWidth / 2, center.Y - towerHeight / 2, 0),
+                    new Point3d(center.X + towerWidth / 2, center.Y + towerHeight / 2, 0));
+
+                var towerCurve = rect.ToNurbsCurve();
+                var xformBack = Transform.PlaneToPlane(Plane.WorldXY, obbPlane);
+                towerCurve.Transform(xformBack);
+
+                // Intersect with buildable area
+                var intersection = Curve.CreateBooleanIntersection(buildableCurve, towerCurve, 0.001);
+                if (intersection != null)
+                    footprints.AddRange(intersection);
+            }
+
+            return footprints;
         }
     }
 }

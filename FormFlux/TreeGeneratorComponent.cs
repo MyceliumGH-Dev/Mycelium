@@ -13,13 +13,13 @@ namespace FormFlux
         public TreeGeneratorComponent()
           : base("Tree Config", "TreeCfg",
               "Configure tree generation parameters for FormFlux",
-              "FormFlux", "Massing")
+              "FormFlux", "Tree")
         {
         }
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddNumberParameter("TreeDensity", "TDens", "Tree density percentage (0-100%). 100% = maximum density (1 tree per 25m²)", GH_ParamAccess.item, 100.0);
+            pManager.AddNumberParameter("TreeDensity", "TDens", "Tree density percentage (0-100%). 100% = maximum density (1 tree per 25m²)", GH_ParamAccess.item, 10.0);
             pManager.AddNumberParameter("MinDiameter", "MinD", "Minimum tree diameter in meters", GH_ParamAccess.item, 2.0);
             pManager.AddNumberParameter("MaxDiameter", "MaxD", "Maximum tree diameter in meters", GH_ParamAccess.item, 5.0);
             pManager.AddBooleanParameter("GenerateInCourtyards", "Court", "Generate trees in building courtyards", GH_ParamAccess.item, true);
@@ -33,7 +33,7 @@ namespace FormFlux
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             // Get inputs
-            double treeDensity = 100.0;
+            double treeDensity = 10.0;
             double minDiameter = 2.0;
             double maxDiameter = 5.0;
             bool generateInCourtyards = true;

@@ -68,4 +68,22 @@
   <data name="FluxTree" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icons\FluxTree.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="FluxCourtyard" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxCourtyard.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FluxLinear" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxLinear.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FluxPoint" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxPoint.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FluxL" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxL.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FluxU" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxU.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FluxTall" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icons\FluxTall.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
 </root>

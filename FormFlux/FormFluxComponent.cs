@@ -12,30 +12,25 @@ namespace FormFlux
         public FormFluxComponent()
           : base("Form Flux", "FormFlux",
               "Generate building masses with multiple typologies from parcel boundaries",
-              "FormFlux", "Massing")
+              "FormFlux", "Main")
         {
         }
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
             pManager.AddCurveParameter("Boundary", "B", "Parcel boundary curve (closed, planar)", GH_ParamAccess.item);
-            pManager.AddNumberParameter("Setback", "S", "Distance from parcel edge to building face", GH_ParamAccess.item, 3.0);
-            pManager.AddNumberParameter("BuildingDepth", "D", "Depth of the building wing", GH_ParamAccess.item, 12.0);
-            pManager.AddNumberParameter("MinFootprintArea", "MinA", "Minimum buildable footprint area (m²)", GH_ParamAccess.item, 100.0);
-            pManager.AddNumberParameter("Floors_min", "Fmin", "Minimum floors", GH_ParamAccess.item, 3.0);
-            pManager.AddNumberParameter("Floors_max", "Fmax", "Maximum floors", GH_ParamAccess.item, 6.0);
             pManager.AddNumberParameter("FloorHeight", "FH", "Floor-to-floor height (m)", GH_ParamAccess.item, 4);
             pManager.AddIntegerParameter("Divisions", "Div", "Subdivision recursion depth", GH_ParamAccess.item, 2);
             pManager.AddNumberParameter("StreetWidth", "SW", "Width of streets (m)", GH_ParamAccess.item, 2.0);
-            pManager.AddIntegerParameter("BuildingTypes", "Types", "Allowed building types: 0=courtyard, 1=linear, 2=point, 3=l-shape, 4=u-shape", GH_ParamAccess.list);
+            pManager.AddTextParameter("BuildingConfigs", "Configs", "List of building configurations from Config components", GH_ParamAccess.list);
             pManager.AddIntegerParameter("NumParks", "Parks", "Number of park parcels", GH_ParamAccess.item, 2);
             pManager.AddBooleanParameter("GenerateFloorSlabs", "Slabs", "Generate individual floor slabs",  GH_ParamAccess.item, false);
             pManager.AddTextParameter("Trees", "Trees", "Tree configuration from Tree Config component (optional)", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Seed", "Seed", "Random seed", GH_ParamAccess.item, 0);
 
             // Set defaults for optional lists
-            pManager[9].Optional = true; // BuildingTypes
-            pManager[12].Optional = true; // Trees
+            pManager[4].Optional = true; // BuildingConfigs
+            pManager[7].Optional = true; // Trees
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -52,44 +47,47 @@ namespace FormFlux
             pManager.AddTextParameter("Metrics", "Met", "Area and unit metrics", GH_ParamAccess.item);
         }
 
+        private struct BuildingConfig
+        {
+            public int TypeIndex;
+            public double MinFloors;
+            public double MaxFloors;
+            public double CornerRadius;
+            public double MinArea;
+            public double MinSetback;
+            public double MaxSetback;
+            public double MinDepth;
+            public double MaxDepth;
+        }
+
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             // Get inputs
             Curve boundary = null;
-            double setback = 3.0;
-            double buildingDepth = 12.0;
-            double minFootprintArea = 100.0;
-            double floorsMin = 3.0;
-            double floorsMax = 6.0;
             double floorHeight = 3.2;
             int divisions = 0;
             double streetWidth = 5.0;
-            List<int> buildingTypeIndices = new List<int>();
+            List<string> buildingConfigsRaw = new List<string>();
             int numParks = 0;
             bool generateFloorSlabs = false;
             string treeConfig = null;
             int seed = 0;
 
             // Default tree parameters
-            double treeDensity = 100.0;
+            double treeDensity = 10.0;
             double minTreeDiameter = 2.0;
             double maxTreeDiameter = 5.0;
             bool generateInCourtyards = true;
 
             if (!DA.GetData(0, ref boundary)) return;
-            DA.GetData(1, ref setback);
-            DA.GetData(2, ref buildingDepth);
-            DA.GetData(3, ref minFootprintArea);
-            DA.GetData(4, ref floorsMin);
-            DA.GetData(5, ref floorsMax);
-            DA.GetData(6, ref floorHeight);
-            DA.GetData(7, ref divisions);
-            DA.GetData(8, ref streetWidth);
-            DA.GetDataList(9, buildingTypeIndices);
-            DA.GetData(10, ref numParks);
-            DA.GetData(11, ref generateFloorSlabs);
-            bool hasTreeConfig = DA.GetData(12, ref treeConfig);
-            DA.GetData(13, ref seed);
+            DA.GetData(1, ref floorHeight);
+            DA.GetData(2, ref divisions);
+            DA.GetData(3, ref streetWidth);
+            DA.GetDataList(4, buildingConfigsRaw);
+            DA.GetData(5, ref numParks);
+            DA.GetData(6, ref generateFloorSlabs);
+            bool hasTreeConfig = DA.GetData(7, ref treeConfig);
+            DA.GetData(8, ref seed);
 
             // Parse tree configuration if provided
             if (hasTreeConfig && !string.IsNullOrEmpty(treeConfig))
@@ -111,25 +109,76 @@ namespace FormFlux
                 }
             }
 
-            // Map building type indices to names
-            // 0=courtyard, 1=linear, 2=point, 3=l-shape, 4=u-shape
-            string[] typeNames = { "courtyard", "linear", "point", "l-shape", "u-shape" };
-            
-            var allowedTypes = new List<string>();
-            if (buildingTypeIndices == null || buildingTypeIndices.Count == 0)
+            // Parse building configurations
+            var allowedConfigs = new List<BuildingConfig>();
+            double globalMinArea = double.MaxValue; // For subdivision
+
+            if (buildingConfigsRaw != null && buildingConfigsRaw.Count > 0)
             {
-                allowedTypes.Add("courtyard"); // Default to courtyard
-            }
-            else
-            {
-                foreach (var idx in buildingTypeIndices)
+                foreach (var cfgStr in buildingConfigsRaw)
                 {
-                    if (idx >= 0 && idx < typeNames.Length)
-                        allowedTypes.Add(typeNames[idx]);
+                    try
+                    {
+                        var parts = cfgStr.Split('|');
+                        if (parts.Length >= 3)
+                        {
+                            var config = new BuildingConfig
+                            {
+                                TypeIndex = int.Parse(parts[0]),
+                                MinFloors = double.Parse(parts[1]),
+                                MaxFloors = double.Parse(parts[2]),
+                                CornerRadius = 0.0,
+                                MinArea = 100.0,
+                                MinSetback = 3.0,
+                                MaxSetback = 3.0,
+                                MinDepth = 12.0,
+                                MaxDepth = 12.0
+                            };
+                            
+                            if (parts.Length >= 4)
+                                config.CornerRadius = double.Parse(parts[3]);
+                            
+                            if (parts.Length >= 5)
+                                config.MinArea = double.Parse(parts[4]);
+
+                            if (parts.Length >= 7)
+                            {
+                                config.MinSetback = double.Parse(parts[5]);
+                                config.MaxSetback = double.Parse(parts[6]);
+                            }
+
+                            if (parts.Length >= 9)
+                            {
+                                config.MinDepth = double.Parse(parts[7]);
+                                config.MaxDepth = double.Parse(parts[8]);
+                            }
+                            
+                            allowedConfigs.Add(config);
+                            
+                            // Track global min area for subdivision
+                            if (config.MinArea < globalMinArea)
+                                globalMinArea = config.MinArea;
+                        }
+                    }
+                    catch { /* Ignore invalid configs */ }
                 }
-                // If no valid indices, default to courtyard
-                if (allowedTypes.Count == 0)
-                    allowedTypes.Add("courtyard");
+            }
+
+            // Default config if none provided (Courtyard, 3-6 floors)
+            if (allowedConfigs.Count == 0)
+            {
+                allowedConfigs.Add(new BuildingConfig { 
+                    TypeIndex = 0, 
+                    MinFloors = 3.0, 
+                    MaxFloors = 6.0, 
+                    CornerRadius = 0.0, 
+                    MinArea = 100.0,
+                    MinSetback = 3.0,
+                    MaxSetback = 3.0,
+                    MinDepth = 12.0,
+                    MaxDepth = 12.0
+                });
+                globalMinArea = 100.0;
             }
 
             // Random number generator
@@ -146,8 +195,8 @@ namespace FormFlux
             var trees = new List<Brep>();
             var parcels = new List<Curve>();
 
-            // 1. Subdivide parcel
-            var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, minFootprintArea, streetWidth, rng);
+            // 1. Subdivide parcel using the smallest min area from all configs
+            var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, globalMinArea, streetWidth, rng);
 
             // Calculate streets
             var streetsDiff = Curve.CreateBooleanDifference(boundary, allParcels.ToArray(), 0.001);
@@ -200,7 +249,20 @@ namespace FormFlux
                 if (pCurve.ClosedCurveOrientation(plane) == CurveOrientation.Clockwise)
                     pCurve.Reverse();
 
-                var buildableOffsets = GeometryHelpers.OffsetCurve(pCurve, -setback, plane);
+                // Pick random building config FIRST
+                var selectedConfig = allowedConfigs[rng.Next(allowedConfigs.Count)];
+                
+                // Random setback
+                double sMin = Math.Max(0.0, selectedConfig.MinSetback);
+                double sMax = Math.Max(sMin, selectedConfig.MaxSetback);
+                double currentSetback = rng.NextDouble() * (sMax - sMin) + sMin;
+
+                // Random depth
+                double dMin = Math.Max(1.0, selectedConfig.MinDepth);
+                double dMax = Math.Max(dMin, selectedConfig.MaxDepth);
+                double currentDepth = rng.NextDouble() * (dMax - dMin) + dMin;
+
+                var buildableOffsets = GeometryHelpers.OffsetCurve(pCurve, -currentSetback, plane);
                 if (buildableOffsets == null || buildableOffsets.Length == 0)
                     continue;
 
@@ -211,33 +273,36 @@ namespace FormFlux
                     buildableArea += area;
                 }
 
-                if (buildableArea < minFootprintArea)
+                // Check if this parcel is large enough for the selected building type
+                if (buildableArea < selectedConfig.MinArea)
                     continue;
 
-                // Pick random building type
-                string buildingType = allowedTypes[rng.Next(allowedTypes.Count)];
+                int typeIndex = selectedConfig.TypeIndex;
 
                 // Generate footprint
                 List<Curve> blockFootprints = null;
                 List<Curve> courtyardInteriors = new List<Curve>();
 
-                switch (buildingType)
+                switch (typeIndex)
                 {
-                    case "linear":
-                        blockFootprints = BuildingGenerators.GenerateLinearBlock(pCurve, setback, buildingDepth);
+                    case 1: // Linear
+                        blockFootprints = BuildingGenerators.GenerateLinearBlock(pCurve, currentSetback, currentDepth);
                         break;
-                    case "point":
-                        blockFootprints = BuildingGenerators.GeneratePointBlock(pCurve, setback, buildingDepth);
+                    case 2: // Point
+                        blockFootprints = BuildingGenerators.GeneratePointBlock(pCurve, currentSetback, currentDepth);
                         break;
-                    case "l-shape":
-                        blockFootprints = BuildingGenerators.GenerateLShape(pCurve, setback, buildingDepth, rng);
+                    case 3: // L-Shape
+                        blockFootprints = BuildingGenerators.GenerateLShape(pCurve, currentSetback, currentDepth, rng);
                         break;
-                    case "u-shape":
-                        blockFootprints = BuildingGenerators.GenerateUShape(pCurve, setback, buildingDepth, rng);
+                    case 4: // U-Shape
+                        blockFootprints = BuildingGenerators.GenerateUShape(pCurve, currentSetback, currentDepth, rng);
                         break;
-                    default:
+                    case 5: // Tall Building
+                        blockFootprints = BuildingGenerators.GenerateTallBuilding(pCurve, currentSetback, currentDepth);
+                        break;
+                    default: // 0 = Courtyard
                         // Courtyard/perimeter block - returns tuple with courtyards
-                        var result = BuildingGenerators.GeneratePerimeterBlock(pCurve, setback, buildingDepth);
+                        var result = BuildingGenerators.GeneratePerimeterBlock(pCurve, currentSetback, currentDepth);
                         blockFootprints = result.Item1;
                         courtyardInteriors = result.Item2;
                         break;
@@ -245,6 +310,21 @@ namespace FormFlux
 
                 if (blockFootprints == null || blockFootprints.Count == 0)
                     continue;
+
+                // Apply corner radius if specified
+                if (selectedConfig.CornerRadius > 0.01)
+                {
+                    var roundedFootprints = new List<Curve>();
+                    foreach (var fp in blockFootprints)
+                    {
+                        var rounded = Curve.CreateFilletCornersCurve(fp, selectedConfig.CornerRadius, 0.001, 0.001);
+                        if (rounded != null)
+                            roundedFootprints.Add(rounded);
+                        else
+                            roundedFootprints.Add(fp); // Fallback to original if fillet fails
+                    }
+                    blockFootprints = roundedFootprints;
+                }
 
                 footprints.AddRange(blockFootprints);
                 
@@ -264,10 +344,10 @@ namespace FormFlux
                     }
                 }
 
-                // Random height
-                floorsMin = Math.Max(1.0, floorsMin);
-                floorsMax = Math.Max(floorsMin, floorsMax);
-                double avgFloors = rng.NextDouble() * (floorsMax - floorsMin) + floorsMin;
+                // Random height based on selected config
+                double fMin = Math.Max(1.0, selectedConfig.MinFloors);
+                double fMax = Math.Max(fMin, selectedConfig.MaxFloors);
+                double avgFloors = rng.NextDouble() * (fMax - fMin) + fMin;
                 double height = avgFloors * floorHeight;
 
                 for (int j = 0; j < blockFootprints.Count; j++)

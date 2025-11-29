@@ -20,7 +20,7 @@ namespace FormFlux
         public FluxTemplateComponent()
           : base("Flux Template", "FluxTemplate",
               "FormFlux template files for quick starting",
-              "FormFlux", "Templates")
+              "FormFlux", "Main")
         {
         }
 
