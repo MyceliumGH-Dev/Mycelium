@@ -22,6 +22,50 @@ namespace MetaForm.Core
         }
 
         /// <summary>
+        /// Get an Oriented Bounding Box plane aligned to the longest straight edge of the curve
+        /// </summary>
+        public static Plane GetOrientedBoundingBoxPlane(Curve curve)
+        {
+            var plane = Plane.WorldXY;
+            if (curve == null) return plane;
+
+            Polyline polyline = null;
+            if (!curve.TryGetPolyline(out polyline))
+            {
+                var plc = curve.ToPolyline(0.01, 0.1, 0.0, 0.0);
+                if (plc != null)
+                    plc.TryGetPolyline(out polyline);
+            }
+
+            if (polyline != null)
+            {
+                double maxLength = 0;
+                Line longestEdge = new Line();
+                for (int i = 0; i < polyline.SegmentCount; i++)
+                {
+                    Line segment = polyline.SegmentAt(i);
+                    if (segment.Length > maxLength)
+                    {
+                        maxLength = segment.Length;
+                        longestEdge = segment;
+                    }
+                }
+                
+                if (maxLength > 0.001)
+                {
+                    Vector3d xAxis = longestEdge.Direction;
+                    xAxis.Unitize();
+                    Vector3d zAxis = Vector3d.ZAxis;
+                    Vector3d yAxis = Vector3d.CrossProduct(zAxis, xAxis);
+                    yAxis.Unitize();
+                    plane = new Plane(longestEdge.From, xAxis, yAxis);
+                }
+            }
+
+            return plane;
+        }
+
+        /// <summary>
         /// Offset a curve inward or outward
         /// </summary>
         public static Curve[] OffsetCurve(Curve curve, double distance, Plane plane)
@@ -72,6 +116,23 @@ namespace MetaForm.Core
         }
 
         /// <summary>
+        /// Robustly intersects a footprint curve with a buildable area.
+        /// Falls back to the footprint if Rhino's intersection fails.
+        /// </summary>
+        public static Curve[] SafeBooleanIntersection(Curve curve, Curve buildable, double tolerance = 0.001)
+        {
+            if (curve == null || buildable == null)
+                return new Curve[0];
+
+            var result = Curve.CreateBooleanIntersection(curve, buildable, tolerance);
+            if (result != null && result.Length > 0)
+                return result;
+
+            // Fallback: if intersection fails (e.g. due to coincident edges), return the original curve.
+            return new Curve[] { curve };
+        }
+
+        /// <summary>
         /// Extrude curves vertically to create building masses
         /// </summary>
         public static Brep ExtrudeCurveVertically(Curve curve, double height)
@@ -103,13 +164,6 @@ namespace MetaForm.Core
 
             if (footprints == null || footprints.Count == 0)
                 return masses;
-
-            // Orient curves
-            foreach (var fp in footprints)
-            {
-                if (fp.ClosedCurveOrientation(Plane.WorldXY) == CurveOrientation.Clockwise)
-                    fp.Reverse();
-            }
 
             // Create planar breps from all curves together (handles holes)
             var planarBreps = Brep.CreatePlanarBreps(footprints, 0.001);
