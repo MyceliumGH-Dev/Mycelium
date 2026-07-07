@@ -98,12 +98,12 @@
             </chunk>
             <chunk name="Library" index="3">
               <items count="6">
-                <item name="AssemblyFullName" type_name="gh_string" type_code="10">MetaForm, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null</item>
-                <item name="AssemblyVersion" type_name="gh_string" type_code="10">0.0.0.0</item>
-                <item name="Author" type_name="gh_string" type_code="10"></item>
-                <item name="Id" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
-                <item name="Name" type_name="gh_string" type_code="10">Meta Form</item>
-                <item name="Version" type_name="gh_string" type_code="10"></item>
+                <item name="AssemblyFullName" type_name="gh_string" type_code="10">Mycelium, Version=0.1.0.0, Culture=neutral, PublicKeyToken=null</item>
+                <item name="AssemblyVersion" type_name="gh_string" type_code="10">0.1.0.0</item>
+                <item name="Author" type_name="gh_string" type_code="10">Ilker Karadag, Patrick Kastner</item>
+                <item name="Id" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
+                <item name="Name" type_name="gh_string" type_code="10">Mycelium</item>
+                <item name="Version" type_name="gh_string" type_code="10">0.1.0</item>
               </items>
             </chunk>
           </chunks>
@@ -116,13 +116,13 @@
             <chunk name="Object" index="0">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">b7e8f3a2-4d6c-4e9f-8a1b-3c5d7e9f2a4b</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">Tree Config</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
                   <items count="4">
-                    <item name="Description" type_name="gh_string" type_code="10">Configure tree generation parameters for MetaForm</item>
+                    <item name="Description" type_name="gh_string" type_code="10">Configure tree generation parameters for the massing generator</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">01983bed-9335-4fa9-aac5-9be4815c0f8c</item>
                     <item name="Name" type_name="gh_string" type_code="10">Tree Config</item>
                     <item name="NickName" type_name="gh_string" type_code="10">Tree Config</item>
@@ -144,7 +144,7 @@
                     </chunk>
                     <chunk name="param_input" index="0">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Tree density percentage (0-100%). 100% = maximum density (1 tree per 25m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Tree density percentage (0-100%). 100% = maximum density (1 tree per 25mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">d2a9b63a-0371-4fa3-bda0-9ac383f3df2a</item>
                         <item name="Name" type_name="gh_string" type_code="10">TreeDensity</item>
                         <item name="NickName" type_name="gh_string" type_code="10">TreeDensity</item>
@@ -332,7 +332,7 @@
                     </chunk>
                     <chunk name="param_output" index="0">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Tree configuration data for MetaForm</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Tree configuration data for the massing generator</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">ddfd2981-7379-40f9-ba62-c27198868a01</item>
                         <item name="Name" type_name="gh_string" type_code="10">Trees</item>
                         <item name="NickName" type_name="gh_string" type_code="10">Trees</item>
@@ -2037,9 +2037,9 @@
             </chunk>
             <chunk name="Object" index="30">
               <items count="3">
-                <item name="GUID" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
-                <item name="Name" type_name="gh_string" type_code="10">Meta Form</item>
+                <item name="GUID" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
+                <item name="Name" type_name="gh_string" type_code="10">Massing Generator</item>
               </items>
               <chunks count="1">
                 <chunk name="Container">
@@ -2047,8 +2047,8 @@
                     <item name="Description" type_name="gh_string" type_code="10">Generate building masses with multiple typologies from parcel boundaries</item>
                     <item name="Hidden" type_name="gh_bool" type_code="1">true</item>
                     <item name="InstanceGuid" type_name="gh_guid" type_code="9">6792081e-8764-482d-924a-3155b6f515bb</item>
-                    <item name="Name" type_name="gh_string" type_code="10">Meta Form</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">Meta Form</item>
+                    <item name="Name" type_name="gh_string" type_code="10">Massing Generator</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">Massing</item>
                   </items>
                   <chunks count="20">
                     <chunk name="Attributes">
@@ -2703,7 +2703,7 @@
             <chunk name="Object" index="31">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">33333333-3333-3333-3333-333333333333</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">Point Config</item>
               </items>
               <chunks count="1">
@@ -2869,7 +2869,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">722a9dda-5c5f-4e41-b332-628ba2884fb4</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -3177,7 +3177,7 @@
             <chunk name="Object" index="33">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">66666666-6666-6666-6666-666666666666</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">Tall Building Config</item>
               </items>
               <chunks count="1">
@@ -3346,7 +3346,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="7">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">e095a8d7-38bc-4490-bd7a-852c6784f6a9</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -3946,7 +3946,7 @@
             <chunk name="Object" index="37">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">55555555-5555-5555-5555-555555555555</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">U-Shape Config</item>
               </items>
               <chunks count="1">
@@ -4112,7 +4112,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">ec6ed65a-03af-4e87-8b3e-a6197a13fec7</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -4419,7 +4419,7 @@
             <chunk name="Object" index="39">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">11111111-1111-1111-1111-111111111111</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">Courtyard Config</item>
               </items>
               <chunks count="1">
@@ -4586,7 +4586,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">fd93bb5b-4d3c-49bc-8b1a-7d08ad175ff9</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -5035,7 +5035,7 @@
             <chunk name="Object" index="44">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">22222222-2222-2222-2222-222222222222</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">Linear Config</item>
               </items>
               <chunks count="1">
@@ -5203,7 +5203,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">08eca829-04a7-4e50-9525-03bf39f51ede</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -5554,7 +5554,7 @@
             <chunk name="Object" index="47">
               <items count="3">
                 <item name="GUID" type_name="gh_guid" type_code="9">44444444-4444-4444-4444-444444444444</item>
-                <item name="Lib" type_name="gh_guid" type_code="9">8dd5a26c-63f9-4e4f-9a7b-6c5b8d1e4f3a</item>
+                <item name="Lib" type_name="gh_guid" type_code="9">20543b24-aa77-4377-b31b-a778c91cb192</item>
                 <item name="Name" type_name="gh_string" type_code="10">L-Shape Config</item>
               </items>
               <chunks count="1">
@@ -5720,7 +5720,7 @@
                     </chunk>
                     <chunk name="param_input" index="3">
                       <items count="6">
-                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (m²)</item>
+                        <item name="Description" type_name="gh_string" type_code="10">Minimum footprint area (mÂ²)</item>
                         <item name="InstanceGuid" type_name="gh_guid" type_code="9">b8121087-81c0-4f22-8565-bc4911074c16</item>
                         <item name="Name" type_name="gh_string" type_code="10">MinArea</item>
                         <item name="NickName" type_name="gh_string" type_code="10">MinArea</item>
@@ -6138,7 +6138,7 @@
                     <item name="ScrollRatio" type_name="gh_double" type_code="6">0</item>
                     <item name="Source" index="0" type_name="gh_guid" type_code="9">6467aa8c-c403-4e90-9331-402485324353</item>
                     <item name="SourceCount" type_name="gh_int32" type_code="3">1</item>
-                    <item name="UserText" type_name="gh_string" type_code="10">Double click to edit panel content…</item>
+                    <item name="UserText" type_name="gh_string" type_code="10">Double click to edit panel contentâ€¦</item>
                   </items>
                   <chunks count="2">
                     <chunk name="Attributes">
