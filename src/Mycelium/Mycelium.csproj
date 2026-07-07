@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Rhino 8 runs Grasshopper on .NET 7. EnableWindowsTargeting allows building on macOS/Linux. -->
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <TargetExt>.gha</TargetExt>
+    <AssemblyName>Mycelium</AssemblyName>
+    <RootNamespace>Mycelium</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>Mycelium</Product>
+    <AssemblyTitle>Mycelium</AssemblyTitle>
+    <Description>Generative urban massing for Grasshopper: parcel subdivision, building typologies, parks, trees, and terrain.</Description>
+    <Authors>Ilker Karadag;Patrick Kastner</Authors>
+    <Copyright>Copyright © 2026 Ilker Karadag, Patrick Kastner</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/SustainableUrbanSystemsLab/Mycelium</RepositoryUrl>
+    <!-- NU1701: the Grasshopper/RhinoCommon packages ship net48 reference assemblies;
+         Rhino 8 provides the real .NET 7 assemblies at run time (McNeel's documented setup). -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ExcludeAssets=runtime: Rhino provides these assemblies at run time; never ship them. -->
+    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Icons\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Templates\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

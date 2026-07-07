@@ -1,0 +1,21 @@
+# Yak package manifest for Mycelium.
+# The version field is overwritten from Mycelium.csproj by scripts/package.sh / CI.
+name: mycelium
+version: 0.1.0
+authors:
+  - Ilker Karadag
+  - Patrick Kastner
+description: >
+  Generative urban massing for Grasshopper. Subdivide a parcel into blocks and
+  streets, grow building typologies (courtyard, linear, point, L-shape, U-shape,
+  tower), allocate parks and trees, and generate procedural terrain surfaces.
+url: https://github.com/SustainableUrbanSystemsLab/Mycelium
+icon: icon.png
+keywords:
+  - grasshopper
+  - generative-design
+  - urban-design
+  - massing
+  - architecture
+  - parcel
+  - terrain

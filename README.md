@@ -1,203 +1,132 @@
-# Generative Design Tool
-*(Pure Python + Grasshopper, Apache-2.0)*
+<p align="center">
+  <img src="docs/images/logo.png" alt="Mycelium logo" width="160"/>
+</p>
 
-This toolkit generates **building massing alternatives** for a given **parcel boundary**, using controls similar to:
+<h1 align="center">Mycelium</h1>
 
-- **Building typology**: Point, Slab, L-shaped, U-shaped, O-shaped  
-- **Targets**: GFA, FAR, average height / floors  
-- **Derived**: footprint area range, Site Coverage Ratio (SCR)
+<p align="center">
+  Generative urban massing for <a href="https://www.grasshopper3d.com/">Grasshopper</a> (Rhino 8).<br/>
+  Subdivide a parcel into blocks and streets, grow building typologies, allocate parks and trees, and generate terrain.
+</p>
 
-The goal:
-
-> **Parcel boundary + design targets → many geometry alternatives**  
-> in both **pure Python** (batch) and **Grasshopper** (interactive).
-
----
-
-## 1. Repository Structure
-
-Suggested layout:
-
-```text
-.
-├── README.md
-├── LICENSE                 # Apache-2.0
-├── python/
-│   ├── requirements.txt
-│   ├── parcel_targets.py   # GFA/FAR/floors/SCR calculations
-│   ├── generator.py        # geometry generation per typology
-│   ├── demo_parcel.py      # simple example script
-│   └── utils.py            # plotting / export helpers (optional)
-└── grasshopper/
-    ├── gh_parcel_gen.py    # GhPython script (same logic as python/)
-    └── README_GRASSHOPPER.md
+<p align="center">
+  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/build.yml/badge.svg" alt="Build"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
+  <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
+</p>
 
 ---
 
-## 2. Design Targets & Formulas
+![Sample massing output](docs/images/sample-1.jpeg)
 
-For a **single parcel** we use:
+## What it does
 
-- `A_parcel` – parcel area [m²]  
-- `GFA` – gross floor area [m²]  
-- `FAR` – floor area ratio `FAR = GFA / A_parcel` [-]  
-- `N_floors` – average number of floors (range)  
-- `H_avg` – average building height (range, optional check)  
-- `A_fp` – total building footprint area [m²]  
-- `SCR` – site coverage ratio `SCR = A_fp / A_parcel` [-]
+Mycelium takes a closed parcel boundary curve and generates complete urban massing alternatives:
 
-Basic relationships:
+1. **Subdivision** — recursive binary space partitioning splits the parcel into building blocks separated by streets.
+2. **Typologies** — each block receives a randomly selected building type from the configurations you allow: courtyard (perimeter block), linear bar, point block, L-shape, U-shape, or tall tower.
+3. **Open space** — a chosen number of blocks become parks, populated with procedural trees; courtyards can receive trees too.
+4. **Metrics** — GFA, GIA, NIA, FAR, and unit-count estimates for every generated alternative.
 
-```text
-GFA      = A_fp * N_floors
-FAR      = GFA / A_parcel
-SCR      = A_fp / A_parcel
-A_fp     = GFA / N_floors
-N_floors = GFA / A_fp
-```
+Every output is driven by a random seed, so alternatives are fully reproducible.
 
-From UI-like inputs we:
+## Installation
 
-1. **Given** `A_parcel` and `FAR` → `GFA = FAR * A_parcel`.  
-2. **Given** `GFA` and a range `[N_min, N_max]` → compute footprint range:
+### Via the Package Manager (recommended)
 
-   ```text
-   A_fp_max = GFA / N_min
-   A_fp_min = GFA / N_max
-   ```
+1. In Rhino 8, run the `_PackageManager` command.
+2. Search for **mycelium**.
+3. Install and restart Rhino.
 
-3. Convert to **SCR range**:
+Components appear in Grasshopper under the **Mycelium** tab.
 
-   ```text
-   SCR_min = A_fp_min / A_parcel
-   SCR_max = A_fp_max / A_parcel
-   ```
+### Manual
 
-This reproduces the “Footprint area” and “SCR” sliders at the bottom of the parcel panel.
+Download `Mycelium.gha` from the [latest release](https://github.com/SustainableUrbanSystemsLab/Mycelium/releases), unblock it, and place it in your Grasshopper libraries folder (`_GrasshopperFolders` > Components).
 
----
+## Components
 
-## 3. Building Typologies
+| Component | Tab / Panel | Purpose |
+|---|---|---|
+| **Massing Generator** | Mycelium / Massing | Main generator: parcel in, city block out |
+| **Courtyard Config** | Mycelium / Building Types | Allow perimeter blocks with central courtyards |
+| **Linear Config** | Mycelium / Building Types | Allow bar buildings along the block's long axis |
+| **Point Config** | Mycelium / Building Types | Allow compact point blocks |
+| **L-Shape Config** | Mycelium / Building Types | Allow L-shaped buildings |
+| **U-Shape Config** | Mycelium / Building Types | Allow U-shaped buildings |
+| **Tall Building Config** | Mycelium / Building Types | Allow towers |
+| **Tree Config** | Mycelium / Vegetation | Tree density, size, and courtyard placement |
+| **Terrain Generator** | Mycelium / Site | Procedural terrain from OpenSimplex noise ([docs](docs/terrain-generator.md)) |
+| **Mycelium Templates** | Mycelium / Utilities | Insert bundled example definitions via right-click |
 
-We support five schematic massing patterns per parcel:
+### Massing Generator I/O
 
-- `Point` – one or more compact towers (nearly square footprints)  
-- `Slab` – bar buildings (elongated rectangles)  
-- `L_shaped` – L-footprints (two bars joined)  
-- `U_shaped` – U-footprints (three bars around a courtyard)  
-- `O_shaped` – perimeter / donut block (ring with inner courtyard)
+**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed.
 
-These types only affect **how footprint area is distributed and shaped**. All obey the same parcel-level targets.
+**Outputs**: Footprints, Masses, Heights, Streets, FloorSlabs, Parks, Courtyards, Trees, Parcels, Metrics.
 
----
+Each Building Type Config component exposes: floor range, corner radius, minimum footprint area, setback range, and building depth range. Feed any combination of configs into the generator — each block picks one at random.
 
-## 4. Pure Python API
+## Quick start
 
-### 4.1. Install
+Drop a **Mycelium Templates** component on the canvas, right-click it, and insert *quick_start* — a working example graph wired up for you.
+
+![Algorithm overview](docs/images/algorithm.jpeg)
+
+## Building from source
+
+Requires the [.NET SDK](https://dotnet.microsoft.com/download) (8.0 or newer).
 
 ```bash
-cd python
-pip install -r requirements.txt
+git clone https://github.com/SustainableUrbanSystemsLab/Mycelium.git
+cd Mycelium
+dotnet build Mycelium.sln -c Release
+# → src/Mycelium/bin/Release/net7.0-windows/Mycelium.gha
 ```
 
-Example `requirements.txt`:
+The project targets `net7.0-windows` and builds on Windows, macOS, and Linux (`EnableWindowsTargeting`). The Grasshopper NuGet package ships .NET Framework reference assemblies; Rhino 8 supplies the real .NET 7 assemblies at run time, so the NU1701 restore warning is suppressed intentionally.
 
-```txt
-shapely
-matplotlib
+### Creating a Yak package
+
+```bash
+scripts/package.sh
 ```
 
-### 4.2. Targets helper (`parcel_targets.py`)
+This builds the solution, assembles `dist/`, and produces `mycelium-<version>-rh8_0-any.yak` using the yak CLI from a local Rhino 8 installation. CI does the same on every push and attaches the package to the GitHub release on version tags (`v*`).
 
-`ParcelTargets` encapsulates parcel-level relationships:
+To publish to the [Yak server](https://developer.rhino3d.com/guides/yak/):
 
-```python
-from parcel_targets import ParcelTargets
-
-targets = ParcelTargets(
-    parcel_area=120.0 * 80.0,
-    gfa=88756.0,
-    far=3.0,
-    floors_min=5.0,
-    floors_max=12.0,
-)
-
-print(targets.footprint_range())  # (A_fp_min, A_fp_max)
-print(targets.scr_range())        # (SCR_min, SCR_max)
+```bash
+cd dist
+yak login
+yak push mycelium-<version>-rh8_0-any.yak
 ```
 
-### 4.3. Geometry generator (`generator.py`)
+### Releasing
 
-Key entry point:
+1. Bump `<Version>` in `src/Mycelium/Mycelium.csproj` and update `CHANGELOG.md`.
+2. Tag: `git tag v<version> && git push --tags`.
+3. CI builds the `.yak` and attaches it to the GitHub release; push it to the Yak server manually.
 
-```python
-from shapely.geometry import Polygon
-from parcel_targets import ParcelTargets
-from generator import generate_alternative, Typology
+## Repository layout
 
-parcel = Polygon([(0, 0), (120, 0), (120, 80), (0, 80)])
-
-targets = ParcelTargets(
-    parcel_area=parcel.area,
-    gfa=88756.0,
-    far=3.0,
-    floors_min=5.0,
-    floors_max=12.0,
-)
-
-alt = generate_alternative(
-    site_poly=parcel,
-    typology=Typology.POINT,
-    targets=targets,
-    n_buildings=1,
-    seed=0,
-)
-
-print(alt["metrics"])
+```
+├── src/Mycelium/           # Plugin source (C#, .gha)
+│   ├── Components/         # Grasshopper components
+│   ├── Core/               # Geometry + noise logic (no GH dependencies)
+│   ├── Icons/              # 24x24 component icons
+│   ├── Templates/          # .ghx templates shipped with the package
+│   └── manifest.yml        # Yak package manifest
+├── docs/                   # Documentation and images
+├── scripts/package.sh      # Local Yak packaging
+└── .github/workflows/      # CI: build + package + release
 ```
 
-`generate_alternative` returns a dictionary with:
+## Authors
 
-- `footprints`: list of Shapely polygons  
-- `heights`: list of heights [m] (one per footprint)  
-- `metrics`: dict (`GFA`, `FAR`, `SCR`, etc.)
+- **Ilker Karadag** — original author
+- **Patrick Kastner** — [Sustainable Urban Systems Lab](https://github.com/SustainableUrbanSystemsLab)
 
-See `demo_parcel.py` for a working example, including plotting.
+## License
 
----
-
-## 5. Grasshopper Workflow
-
-The **Grasshopper** script (`grasshopper/gh_parcel_gen.py`) exposes the same controls inside a GhPython component.
-
-**Inputs (GhPython component):**
-
-- `Boundary` (Curve) – closed, planar parcel boundary in World XY  
-- `Typology` (Text) – `"Point"`, `"Slab"`, `"L"`, `"U"`, `"O"`  
-- `GFA` (Number) – target GFA [m²]  
-- `FAR` (Number) – target FAR [-] (optional; used as a check)  
-- `Floors_min`, `Floors_max` (Number) – average floors range  
-- `Seed` (Integer) – random seed  
-
-**Outputs:**
-
-- `Footprints` – list of planar curves (building footprints)  
-- `Masses` – list of extruded Breps (optional)  
-- `Heights` – list of numbers (one per footprint)  
-- `Metrics` – basic metrics summary string
-
-A short usage note is in `grasshopper/README_GRASSHOPPER.md`.
-
----
-
-## 6. License
-
-This project is licensed under the **Apache License 2.0**.
-
-See the [`LICENSE`](LICENSE) file for the full text.
-
-You are free to:
-
-- use the code commercially,  
-- modify and distribute it,  
-- as long as you keep the copyright & license notices and state changes.
+[Apache-2.0](LICENSE)

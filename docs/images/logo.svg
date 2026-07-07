@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Mycelium plugin logo: fungal network growing an urban block -->
+  <defs>
+    <style>
+      .hypha { fill: none; stroke: #2D5A3D; stroke-linecap: round; }
+      .node  { fill: #6B4F35; }
+      .block { fill: #3D7652; stroke: #2D5A3D; stroke-width: 6; }
+      .blockLight { fill: #8A9A5B; stroke: #2D5A3D; stroke-width: 6; }
+    </style>
+  </defs>
+
+  <!-- badge -->
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="#F5F1E8"/>
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="none" stroke="#2D5A3D" stroke-width="10"/>
+
+  <!-- primary hyphae radiating from the center -->
+  <path class="hypha" stroke-width="14" d="M256 256 C 250 200, 262 160, 256 106"/>
+  <path class="hypha" stroke-width="14" d="M256 256 C 306 236, 336 208, 378 160"/>
+  <path class="hypha" stroke-width="14" d="M256 256 C 316 262, 352 282, 398 316"/>
+  <path class="hypha" stroke-width="14" d="M256 256 C 276 316, 300 348, 320 398"/>
+  <path class="hypha" stroke-width="14" d="M256 256 C 216 306, 188 330, 148 368"/>
+  <path class="hypha" stroke-width="14" d="M256 256 C 196 250, 158 232, 116 196"/>
+
+  <!-- secondary branches -->
+  <path class="hypha" stroke-width="9" d="M256 168 C 232 150, 216 138, 196 128"/>
+  <path class="hypha" stroke-width="9" d="M256 168 C 282 152, 298 142, 318 118"/>
+  <path class="hypha" stroke-width="9" d="M330 204 C 348 190, 362 182, 384 236"/>
+  <path class="hypha" stroke-width="9" d="M334 288 C 352 310, 358 330, 352 352"/>
+  <path class="hypha" stroke-width="9" d="M286 330 C 268 356, 254 376, 240 400"/>
+  <path class="hypha" stroke-width="9" d="M196 300 C 180 322, 166 340, 168 396"/>
+  <path class="hypha" stroke-width="9" d="M186 244 C 162 250, 142 262, 118 268"/>
+  <path class="hypha" stroke-width="9" d="M156 214 C 140 194, 132 180, 132 150"/>
+
+  <!-- nodes at hypha tips -->
+  <circle class="node" cx="196" cy="128" r="13"/>
+  <circle class="node" cx="318" cy="118" r="13"/>
+  <circle class="node" cx="384" cy="236" r="13"/>
+  <circle class="node" cx="352" cy="352" r="13"/>
+  <circle class="node" cx="240" cy="400" r="13"/>
+  <circle class="node" cx="168" cy="396" r="13"/>
+  <circle class="node" cx="118" cy="268" r="13"/>
+  <circle class="node" cx="132" cy="150" r="13"/>
+  <circle class="node" cx="148" cy="368" r="13"/>
+  <circle class="node" cx="116" cy="196" r="13"/>
+
+  <!-- building parcels growing at three tips -->
+  <rect class="block"      x="226" y="76"  width="60" height="60" rx="8"/>
+  <rect class="blockLight" x="348" y="130" width="56" height="56" rx="8"/>
+  <rect class="blockLight" x="292" y="372" width="56" height="56" rx="8"/>
+  <rect class="block"      x="368" y="290" width="56" height="56" rx="8"/>
+
+  <!-- center node -->
+  <circle cx="256" cy="256" r="30" fill="#2D5A3D"/>
+  <circle cx="256" cy="256" r="13" fill="#F5F1E8"/>
+</svg>

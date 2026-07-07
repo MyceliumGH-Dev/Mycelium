@@ -1,1 +1,29 @@
+# Build output
+bin/
+obj/
+dist/
+*.yak
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# macOS
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Local agent/tool caches
+.serena/
+.tokensave/
+
+# Rhino/Grasshopper backup files
+*.ghx.bak
+*.gh.bak
+*.3dmbak

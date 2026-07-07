@@ -1,0 +1,25 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36930.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mycelium", "src\Mycelium\Mycelium.csproj", "{C4613EB8-4729-F1B5-2C8A-54A7C41AA822}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4613EB8-4729-F1B5-2C8A-54A7C41AA822}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4613EB8-4729-F1B5-2C8A-54A7C41AA822}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4613EB8-4729-F1B5-2C8A-54A7C41AA822}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4613EB8-4729-F1B5-2C8A-54A7C41AA822}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5F8CCC86-1457-4894-B799-84D64D56D32A}
+	EndGlobalSection
+EndGlobal
