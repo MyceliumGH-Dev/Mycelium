@@ -25,7 +25,8 @@ namespace Mycelium.Components
         // --- GitHub repository configuration ---
         private static readonly string RepoOwner = "SustainableUrbanSystemsLab";
         private static readonly string RepoName = "Mycelium-Templates";
-        private static readonly string RepoBranch = GetBranchFromVersion();
+        // Mutable: falls back to "main" once if the version branch doesn't exist yet.
+        private static string RepoBranch = GetBranchFromVersion();
         // ----------------------------------------
 
         /// <summary>
@@ -81,7 +82,8 @@ namespace Mycelium.Components
 
         protected override Bitmap Icon => ComponentIcons.Get("MyceliumTemplate");
 
-        public string TemplateSourceLabel => $"{RepoOwner}/{RepoName} @ {RepoBranch}";
+        // Owner deliberately omitted: the full slug wraps past the label bounds on the canvas.
+        public string TemplateSourceLabel => $"Templates @ {RepoBranch}";
 
         public override void CreateAttributes()
         {
@@ -252,6 +254,7 @@ namespace Mycelium.Components
 
         private async void FetchGithubFilesAsync()
         {
+            var retryAgainstMain = false;
             _isFetching = true;
             _errorMessage = null;
             _updateAvailable = false;
@@ -276,13 +279,26 @@ namespace Mycelium.Components
             }
             catch (Exception ex)
             {
-                _errorMessage = "Failed to sync GitHub templates: " + ex.Message;
+                // A missing version branch (e.g. templates repo not yet branched for this
+                // release) surfaces as a 404 — retry once against main before giving up.
+                if (RepoBranch != "main")
+                {
+                    RepoBranch = "main";
+                    retryAgainstMain = true;
+                }
+                else
+                {
+                    _errorMessage = "Failed to sync GitHub templates: " + ex.Message;
+                }
             }
             finally
             {
                 _isFetching = false;
                 Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
             }
+
+            if (retryAgainstMain)
+                FetchGithubFilesAsync();
         }
 
         private async void CheckForUpdatesAsync()

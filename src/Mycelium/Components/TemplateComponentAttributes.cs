@@ -77,6 +77,7 @@ namespace Mycelium.Components
                     Alignment = StringAlignment.Center,
                     LineAlignment = StringAlignment.Center,
                     Trimming = StringTrimming.EllipsisCharacter,
+                    FormatFlags = StringFormatFlags.NoWrap,
                 })
                 {
                     graphics.DrawString(comp.TemplateSourceLabel, GH_FontServer.Small, brush, SourceBounds, format);
