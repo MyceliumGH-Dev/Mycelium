@@ -142,7 +142,7 @@ yak push mycelium-<version>-rh8_0-any.yak
 ## Authors
 
 - **Dr. Ilker Karadag** ([@karadagi](https://github.com/karadagi)) — Associate Professor of Architecture, Sakarya University. Original author.
-- **Dr. Patrick Kastner** ([@kastnerp](https://github.com/kastnerp)) — Assistant Professor, School of Architecture, Georgia Institute of Technology; director of the [Sustainable Urban Systems Lab](https://github.com/SustainableUrbanSystemsLab).
+- **Dr. Patrick Kastner** ([@kastnerp](https://github.com/kastnerp)) — Assistant Professor, School of Architecture, Georgia Institute of Technology; [Sustainable Urban Systems Lab](https://github.com/SustainableUrbanSystemsLab).
 
 ## License
 
