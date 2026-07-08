@@ -127,15 +127,15 @@ Pushes are idempotent (already-published distributions are skipped), and every r
 <summary><b>Repository layout</b></summary>
 
 ```
+├── manifest.yml            # Yak package manifest (version source of truth)
 ├── src/Mycelium/           # Plugin source (C#, .gha)
 │   ├── Components/         # Grasshopper components
 │   ├── Core/               # Geometry + noise logic (no GH dependencies)
 │   ├── Icons/              # 24x24 component icons
-│   ├── Templates/          # .ghx templates shipped with the package
-│   └── manifest.yml        # Yak package manifest
+│   └── Templates/          # .ghx templates shipped with the package
 ├── docs/                   # Documentation and images
 ├── scripts/package.sh      # Local Yak packaging
-└── .github/workflows/      # CI: build + package + release
+└── .github/workflows/      # CI, packaging dry-run, Yak release channels
 ```
 
 </details>
