@@ -11,6 +11,8 @@
 
 <p align="center">
   <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
+  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2Fmycelium&query=%24.version&label=version&color=blue" alt="Version"/></a>
+  <a href="https://rhinopackages.github.io/?search=mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2Fmycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
 </p>
@@ -57,7 +59,7 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 | **Tall Building Config** | Mycelium / Building Types | Allow towers |
 | **Tree Config** | Mycelium / Vegetation | Tree density, size, and courtyard placement |
 | **Terrain Generator** | Mycelium / Site | Procedural terrain from OpenSimplex noise ([docs](docs/terrain-generator.md)) |
-| **Mycelium Templates** | Mycelium / Utilities | Insert bundled example definitions via right-click |
+| **Mycelium Templates** | Mycelium / Utilities | Browse and insert example definitions synced from [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) |
 
 <details>
 <summary><b>Massing Generator inputs &amp; outputs</b></summary>
@@ -72,7 +74,7 @@ Each Building Type Config component exposes: floor range, corner radius, minimum
 
 ## Quick start
 
-Drop a **Mycelium Templates** component on the canvas, right-click it, and insert *quick_start* — a working example graph wired up for you.
+Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists the bundled *quick_start* definition plus every template from the [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository (downloaded and cached on first use). Click one to insert a working example graph next to the component.
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 

@@ -1,29 +1,66 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using Grasshopper.GUI.Canvas;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Attributes;
+using Mycelium.Core;
 
 namespace Mycelium.Components
 {
     /// <summary>
-    /// Lists Mycelium template definitions (.gh/.ghx) and inserts one into the current
-    /// document via the right-click menu. Templates ship in the plugin's Templates folder;
-    /// additional folders can be supplied through the Directory input.
+    /// Template browser adopted from Eddy3D's Select Template component: syncs the template
+    /// list from the Mycelium-Templates GitHub repository, caches it locally, downloads
+    /// definitions on demand, and merges the chosen template into the current document.
+    /// Bundled templates (shipped next to the plugin) and user folders / GitHub URLs from
+    /// the Directory input are offered alongside.
     /// </summary>
     public class TemplateComponent : GH_Component
     {
-        private List<string> _folders = new List<string>();
-        private List<List<string>> _filesPerFolder = new List<List<string>>();
+        // --- GitHub repository configuration ---
+        private const string RepoOwner = "SustainableUrbanSystemsLab";
+        private const string RepoName = "Mycelium-Templates";
+        // Templates track main for now; switch to version branches (Eddy3D style) once the
+        // template repo starts branching per release.
+        private const string RepoBranch = "main";
+        // ----------------------------------------
+
+        private TemplateCache _cache = new TemplateCache();
+        private bool _isFetching;
+        public bool IsFetching => _isFetching;
+        private bool _isCheckingForUpdate;
+        private bool _updateAvailable;
+        public bool UpdateAvailable => _updateAvailable;
+        private string _errorMessage;
+        public string ErrorMessage => _errorMessage;
+
+        private readonly Dictionary<string, bool> _externalFetchStates = new Dictionary<string, bool>();
+
+        internal string MainRepoDir => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Mycelium", "Templates", "GitHub");
+
+        private string ExternalRepoRoot => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Mycelium", "Templates", "External");
+
+        private sealed class TemplateCache
+        {
+            public List<string> Files { get; set; } = new List<string>();
+            public string LastSyncedSha { get; set; }
+        }
 
         public TemplateComponent()
           : base("Mycelium Templates", "Templates",
-              "Mycelium template files for quick starting",
+              "Load example Grasshopper definitions for common Mycelium workflows.\n\n" +
+              "Templates are synced from the Mycelium-Templates GitHub repository; " +
+              "bundled templates and your own folders are offered alongside.",
               "Mycelium", "Utilities")
         {
         }
@@ -33,90 +70,343 @@ namespace Mycelium.Components
 
         protected override Bitmap Icon => ComponentIcons.Get("MyceliumTemplate");
 
+        public string TemplateSourceLabel => $"{RepoOwner}/{RepoName} @ {RepoBranch}";
+
+        public override void CreateAttributes()
+        {
+            m_attributes = new TemplateComponentAttributes(this);
+        }
+
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Directory", "Dir", "Additional folder path(s) to search for Mycelium templates.", GH_ParamAccess.list);
+            pManager.AddTextParameter("Directory", "Dir",
+                "Additional template sources: local folder paths or GitHub repository URLs.",
+                GH_ParamAccess.list);
             pManager[0].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddTextParameter("Templates", "T", "Mycelium templates found in the search folders.", GH_ParamAccess.list);
+            pManager.AddTextParameter("Templates", "T",
+                "Template file paths from all sources.", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            _folders = new List<string>();
-            _filesPerFolder = new List<List<string>>();
+            var additionalInputs = new List<string>();
+            DA.GetDataList(0, additionalInputs);
 
-            // Default search folder: Templates next to the plugin assembly
-            string pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var dirs = new List<string>
+            // 1. Sync the main repo cache
+            if (_cache.Files.Count == 0 && !_isFetching && _errorMessage == null)
             {
-                Path.Combine(pluginDir, "Templates")
-            };
+                LoadTemplateCache();
+                if (_cache.Files.Count == 0 && !_isFetching) FetchGithubFilesAsync();
+            }
 
-            var additionalDirs = new List<string>();
-            DA.GetDataList(0, additionalDirs);
-            dirs.AddRange(additionalDirs);
-
-            foreach (var dir in dirs.Where(Directory.Exists))
+            // 2. Background update check for the main repo
+            if (_cache.Files.Count > 0 && !_isFetching && !_isCheckingForUpdate && !_updateAvailable)
             {
-                var files = Directory.GetFiles(dir, "*.gh*", SearchOption.AllDirectories)
-                    .Where(f => f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase)
-                             || f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                CheckForUpdatesAsync();
+            }
 
-                if (files.Any())
+            if (_updateAvailable)
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Remark, "Template update available - click 'Select Template' to sync.");
+            else if (_isFetching || (_cache.Files.Count == 0 && _errorMessage == null))
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Remark, "Syncing templates from GitHub...");
+
+            if (_errorMessage != null)
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, _errorMessage);
+
+            // 3. Collect all template paths
+            var allFiles = new List<string>();
+
+            foreach (var file in BundledTemplates())
+                allFiles.Add(file);
+
+            foreach (var file in _cache.Files)
+                allFiles.Add(Path.Combine(MainRepoDir, file));
+
+            foreach (var input in additionalInputs)
+            {
+                if (string.IsNullOrWhiteSpace(input)) continue;
+
+                if (IsGitHubUrl(input, out var ghInfo))
                 {
-                    _folders.Add(Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-                    _filesPerFolder.Add(files);
+                    var externalDir = Path.Combine(ExternalRepoRoot, ghInfo.Owner, ghInfo.Repo, ghInfo.Branch ?? "HEAD");
+
+                    if (!Directory.Exists(externalDir) || Directory.GetFiles(externalDir, "*.gh*", SearchOption.AllDirectories).Length == 0)
+                    {
+                        if (!_externalFetchStates.TryGetValue(input, out var isFetching) || !isFetching)
+                        {
+                            FetchExternalGithubFilesAsync(input, ghInfo);
+                        }
+                    }
+
+                    if (Directory.Exists(externalDir))
+                    {
+                        foreach (var f in Directory.GetFiles(externalDir, "*.gh*", SearchOption.AllDirectories))
+                        {
+                            // If the URL has a subpath (/tree/branch/SubDir), filter by it
+                            if (!string.IsNullOrEmpty(ghInfo.Path) && !f.Replace("\\", "/").Contains(ghInfo.Path)) continue;
+                            allFiles.Add(f);
+                        }
+                    }
+                }
+                else if (Directory.Exists(input))
+                {
+                    try
+                    {
+                        var files = Directory.GetFiles(input, "*.gh*", SearchOption.AllDirectories)
+                            .Where(f => f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase)
+                                     || f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase));
+                        allFiles.AddRange(files);
+                    }
+                    catch { /* Ignore access errors */ }
                 }
             }
 
-            DA.SetDataList(0, _filesPerFolder.SelectMany(f => f));
+            DA.SetDataList(0, allFiles);
         }
 
-        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
+        /// <summary>Templates shipped in the plugin's own Templates folder (offline fallback).</summary>
+        private IEnumerable<string> BundledTemplates()
         {
-            menu.Items.Clear();
+            var pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            var bundled = Path.Combine(pluginDir ?? string.Empty, "Templates");
+            if (!Directory.Exists(bundled)) yield break;
 
-            if (_filesPerFolder.Count == 0)
+            foreach (var f in Directory.GetFiles(bundled, "*.gh*", SearchOption.AllDirectories))
             {
-                Menu_AppendItem(menu, "No templates found", null, false);
-                return;
+                if (f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase)
+                 || f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase))
+                    yield return f;
+            }
+        }
+
+        // --- GitHub URL handling (ported from Eddy3D, incl. path-traversal guard) ---
+
+        private struct GitHubInfo
+        {
+            public string Owner;
+            public string Repo;
+            public string Branch;
+            public string Path;
+        }
+
+        private static bool IsGitHubUrl(string url, out GitHubInfo info)
+        {
+            info = new GitHubInfo();
+            if (string.IsNullOrEmpty(url) || !url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var parts = url.Substring("https://github.com/".Length).Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2) return false;
+
+            info.Owner = parts[0];
+            info.Repo = parts[1];
+
+            if (parts.Length >= 4 && parts[2] == "tree")
+            {
+                info.Branch = parts[3];
+                if (parts.Length > 4)
+                    info.Path = string.Join("/", parts.Skip(4));
+            }
+            else
+            {
+                // "HEAD" resolves to the repository's default branch on the GitHub API.
+                info.Branch = "HEAD";
             }
 
-            for (int i = 0; i < _filesPerFolder.Count; i++)
-                menu.Items.Add(BuildFolderMenu(_folders[i], _filesPerFolder[i]));
+            // Validate identifiers to prevent path traversal via malicious GitHub URLs.
+            // Owner and Repo must be single identifiers; Branch may contain slashes.
+            return IsValidGitHubIdentifier(info.Owner, allowSlashes: false)
+                && IsValidGitHubIdentifier(info.Repo, allowSlashes: false)
+                && IsValidGitHubIdentifier(info.Branch, allowSlashes: true);
         }
 
-        private ToolStripMenuItem BuildFolderMenu(string rootFolder, List<string> files)
+        private static bool IsValidGitHubIdentifier(string input, bool allowSlashes)
         {
-            var folderItem = new ToolStripMenuItem(new DirectoryInfo(rootFolder).Name);
+            if (string.IsNullOrEmpty(input)) return false;
 
-            foreach (var file in files)
+            var segments = allowSlashes ? input.Split('/') : new[] { input };
+            foreach (var segment in segments)
             {
-                var fileDir = Path.GetDirectoryName(file);
-                var name = Path.GetFileNameWithoutExtension(file);
+                if (string.IsNullOrEmpty(segment) || segment == "." || segment == "..") return false;
+                if (!Regex.IsMatch(segment, @"^[a-zA-Z0-9._-]+$")) return false;
+            }
 
-                // Show the subfolder path for templates in nested folders
-                var showName = fileDir.Length > rootFolder.Length
-                    ? fileDir.Substring(rootFolder.Length + 1) + Path.DirectorySeparatorChar + name
-                    : name;
+            return true;
+        }
 
-                EventHandler onClick = (sender, e) =>
+        // --- Sync / cache ---
+
+        private void LoadTemplateCache()
+        {
+            try
+            {
+                var cachePath = Path.Combine(MainRepoDir, "template_list.json");
+                if (File.Exists(cachePath))
                 {
-                    var item = sender as ToolStripDropDownItem;
-                    InsertTemplate(item.Tag.ToString());
-                    ExpireSolution(true);
-                };
-
-                Menu_AppendItem(folderItem.DropDown, showName, onClick, null, file);
+                    var json = File.ReadAllText(cachePath);
+                    _cache = JsonSerializer.Deserialize<TemplateCache>(json) ?? new TemplateCache();
+                }
             }
-
-            return folderItem;
+            catch (Exception ex)
+            {
+                _errorMessage = "Failed to load local template cache: " + ex.Message;
+            }
         }
+
+        private async void FetchGithubFilesAsync()
+        {
+            _isFetching = true;
+            _errorMessage = null;
+            _updateAvailable = false;
+            Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
+            try
+            {
+                using (var lister = new GitHubFileLister())
+                {
+                    var latestSha = await lister.GetLatestCommitShaAsync(RepoOwner, RepoName, RepoBranch);
+                    var files = await lister.ListFilesAsync(RepoOwner, RepoName, RepoBranch);
+
+                    _cache.Files = files
+                        .Where(f => f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase)
+                                 || f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    _cache.LastSyncedSha = latestSha;
+
+                    if (!Directory.Exists(MainRepoDir)) Directory.CreateDirectory(MainRepoDir);
+                    var cachePath = Path.Combine(MainRepoDir, "template_list.json");
+                    File.WriteAllText(cachePath, JsonSerializer.Serialize(_cache));
+                }
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = "Failed to sync GitHub templates: " + ex.Message;
+            }
+            finally
+            {
+                _isFetching = false;
+                Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
+            }
+        }
+
+        private async void CheckForUpdatesAsync()
+        {
+            if (string.IsNullOrEmpty(_cache.LastSyncedSha)) return;
+
+            _isCheckingForUpdate = true;
+            try
+            {
+                using (var lister = new GitHubFileLister())
+                {
+                    var latestSha = await lister.GetLatestCommitShaAsync(RepoOwner, RepoName, RepoBranch);
+                    if (latestSha != _cache.LastSyncedSha)
+                    {
+                        _updateAvailable = true;
+                        Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail for the background check
+            }
+            finally
+            {
+                // Back off before allowing another check to avoid spamming on frequent expires
+                await Task.Delay(60000);
+                _isCheckingForUpdate = false;
+            }
+        }
+
+        private async void FetchExternalGithubFilesAsync(string inputUrl, GitHubInfo info)
+        {
+            if (_externalFetchStates.TryGetValue(inputUrl, out var isFetching) && isFetching) return;
+            _externalFetchStates[inputUrl] = true;
+
+            try
+            {
+                using (var lister = new GitHubFileLister())
+                {
+                    var files = await lister.ListFilesAsync(info.Owner, info.Repo, info.Branch);
+                    var validFiles = files.Where(f => f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase)
+                                                   || f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase));
+
+                    var targetDir = Path.Combine(ExternalRepoRoot, info.Owner, info.Repo, info.Branch);
+                    if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+
+                    foreach (var relPath in validFiles)
+                    {
+                        if (!string.IsNullOrEmpty(info.Path) && !relPath.Replace("\\", "/").StartsWith(info.Path)) continue;
+
+                        var localPath = Path.Combine(targetDir, relPath);
+                        var localSub = Path.GetDirectoryName(localPath);
+                        if (!Directory.Exists(localSub)) Directory.CreateDirectory(localSub);
+
+                        await DownloadRawFileAsync(info.Owner, info.Repo, info.Branch, relPath, localPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, $"Failed to fetch external templates from {inputUrl}: {ex.Message}");
+            }
+            finally
+            {
+                _externalFetchStates[inputUrl] = false;
+                Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
+            }
+        }
+
+        private static async Task DownloadRawFileAsync(string owner, string repo, string branch, string relPath, string localPath)
+        {
+            var rawUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{relPath}";
+            using (var client = new System.Net.Http.HttpClient())
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mycelium");
+                var data = await client.GetByteArrayAsync(rawUrl);
+                File.WriteAllBytes(localPath, data);
+            }
+        }
+
+        private async Task<bool> EnsureTemplateDownloadedAsync(string relPath)
+        {
+            var localPath = Path.Combine(MainRepoDir, relPath);
+            if (File.Exists(localPath)) return true;
+
+            try
+            {
+                var localSubDir = Path.GetDirectoryName(localPath);
+                if (!Directory.Exists(localSubDir)) Directory.CreateDirectory(localSubDir);
+
+                await DownloadRawFileAsync(RepoOwner, RepoName, RepoBranch, relPath, localPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to download template: {ex.Message}\n\nPlease check your internet connection and try again.",
+                    "Template Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        private void ClearMainTemplateCache()
+        {
+            try
+            {
+                if (Directory.Exists(MainRepoDir)) Directory.Delete(MainRepoDir, true);
+                _cache = new TemplateCache();
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = "Failed to clear local template cache: " + ex.Message;
+            }
+        }
+
+        // --- Canvas insertion ---
 
         /// <summary>
         /// Loads a template file and merges its objects into the active document,
@@ -131,7 +421,9 @@ namespace Mycelium.Components
             var io = new GH_DocumentIO();
             if (!io.Open(filePath))
             {
-                MessageBox.Show("Failed to load template.");
+                MessageBox.Show(
+                    "Failed to open the template document. Please check if the file is valid and accessible.",
+                    "Template Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -148,13 +440,8 @@ namespace Mycelium.Components
             var currentDoc = canvas.Document;
             currentDoc.DeselectAll();
             currentDoc.MergeDocument(templateDoc);
-
-            templateDoc.SelectAll();
         }
 
-        /// <summary>
-        /// Offset that places inserted template objects just left of and below this component.
-        /// </summary>
         private Size GetInsertOffset(PointF fromLocation)
         {
             var moveX = Attributes.Bounds.Left - 80 - fromLocation.X;
@@ -162,50 +449,117 @@ namespace Mycelium.Components
             return new Size(new Point(Convert.ToInt32(moveX), Convert.ToInt32(moveY)));
         }
 
-        public override void CreateAttributes()
-        {
-            m_attributes = new TemplateComponentAttributes(this);
-        }
-    }
+        // --- Menus ---
 
-    /// <summary>
-    /// Custom attributes that draw a "Right click" hint capsule below the component.
-    /// </summary>
-    public class TemplateComponentAttributes : GH_ComponentAttributes
-    {
-        public TemplateComponentAttributes(GH_Component owner) : base(owner)
+        public void OpenLocalTemplateFolder()
         {
+            if (!Directory.Exists(MainRepoDir)) Directory.CreateDirectory(MainRepoDir);
+            // UseShellExecute opens the folder with the OS default handler (Explorer/Finder).
+            Process.Start(new ProcessStartInfo(MainRepoDir) { UseShellExecute = true });
         }
 
-        protected override void Layout()
+        public void OpenGitHubRepository()
         {
-            base.Layout();
-
-            // Reserve space below the component for the hint capsule
-            var bounds = Bounds;
-            bounds.Height += 20;
-            Bounds = bounds;
+            Process.Start(new ProcessStartInfo($"https://github.com/{RepoOwner}/{RepoName}/tree/{RepoBranch}") { UseShellExecute = true });
         }
 
-        protected override void Render(GH_Canvas canvas, Graphics graphics, GH_CanvasChannel channel)
+        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
         {
-            base.Render(canvas, graphics, channel);
+            base.AppendAdditionalComponentMenuItems(menu);
+            AppendTemplateMenuItems(menu);
+        }
 
-            if (channel != GH_CanvasChannel.Objects)
-                return;
+        public void AppendTemplateMenuItems(ToolStripDropDown menu)
+        {
+            var sourceItem = Menu_AppendItem(menu, TemplateSourceLabel, (s, e) => OpenGitHubRepository());
+            sourceItem.ToolTipText = $"Templates are fetched from {RepoOwner}/{RepoName} ({RepoBranch}). Click to view on GitHub.";
+            menu.Items.Add(new ToolStripSeparator());
 
-            var hintBounds = new RectangleF(Bounds.X, Bounds.Bottom - 20, Bounds.Width, 18);
-
-            var capsule = GH_Capsule.CreateCapsule(hintBounds, GH_Palette.Black);
-            capsule.Render(graphics, Selected, Owner.Locked, false);
-            capsule.Dispose();
-
-            var format = new StringFormat
+            // Bundled templates (always available offline)
+            var bundled = BundledTemplates().ToList();
+            foreach (var file in bundled)
             {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center
-            };
-            graphics.DrawString("Right click", GH_FontServer.Small, Brushes.White, hintBounds, format);
+                var item = new ToolStripMenuItem("📦 " + Path.GetFileNameWithoutExtension(file), null, (s, e) =>
+                {
+                    InsertTemplate(file);
+                    ExpireSolution(true);
+                })
+                {
+                    ToolTipText = $"Bundled template: {file}"
+                };
+                menu.Items.Add(item);
+            }
+            if (bundled.Count > 0) menu.Items.Add(new ToolStripSeparator());
+
+            if (_isFetching)
+            {
+                var fetchingItem = menu.Items.Add("Fetching from GitHub...");
+                fetchingItem.Enabled = false;
+            }
+            else if (_cache.Files.Count == 0)
+            {
+                var noItemsItem = menu.Items.Add("No templates found on GitHub");
+                noItemsItem.Enabled = false;
+                noItemsItem.ToolTipText = "The template repository might be empty or unavailable. Try 'Retry Fetch'.";
+                var retryItem = Menu_AppendItem(menu, "🔄 Retry Fetch", (s, e) => FetchGithubFilesAsync());
+                if (retryItem != null) retryItem.ToolTipText = "Attempt to fetch the template list from GitHub again.";
+            }
+            else
+            {
+                if (_updateAvailable)
+                {
+                    var updateItem = new ToolStripMenuItem("Update Available! Click to Sync", null, (s, e) => FetchGithubFilesAsync())
+                    {
+                        BackColor = Color.Gold,
+                        ForeColor = Color.Black,
+                        ToolTipText = "A newer version of the templates is available. Click to synchronize."
+                    };
+                    menu.Items.Add(updateItem);
+                    menu.Items.Add(new ToolStripSeparator());
+                }
+
+                foreach (var file in _cache.Files)
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(file);
+                    var localPath = Path.Combine(MainRepoDir, file);
+                    var isCached = File.Exists(localPath);
+                    var label = isCached ? "📄 " + fileName : "📄 " + fileName + " (Click to Download)";
+
+                    EventHandler onClick = async (s, e) =>
+                    {
+                        if (await EnsureTemplateDownloadedAsync(file))
+                        {
+                            InsertTemplate(localPath);
+                            ExpireSolution(true);
+                        }
+                    };
+
+                    var item = new ToolStripMenuItem(label, null, onClick)
+                    {
+                        ToolTipText = isCached
+                            ? $"Load cached template from: {localPath}"
+                            : $"Download template from GitHub and load it. Cached at: {localPath}"
+                    };
+                    menu.Items.Add(item);
+                }
+            }
+
+            menu.Items.Add(new ToolStripSeparator());
+            var forceRefreshItem = Menu_AppendItem(menu, "🔄 Force Refresh Template List", (s, e) =>
+            {
+                ClearMainTemplateCache();
+                if (_errorMessage == null) FetchGithubFilesAsync();
+                else ExpireSolution(true);
+            });
+            if (forceRefreshItem != null) forceRefreshItem.ToolTipText = "Clear the local template cache and fetch the latest list from GitHub.";
+
+            menu.Items.Add(new ToolStripSeparator());
+
+            var openFolderItem = Menu_AppendItem(menu, "📁 Open Local Template Folder", (s, e) => OpenLocalTemplateFolder());
+            if (openFolderItem != null) openFolderItem.ToolTipText = "Open the local directory where GitHub templates are cached.";
+
+            var viewRepoItem = Menu_AppendItem(menu, "🌐 View GitHub Repository", (s, e) => OpenGitHubRepository());
+            if (viewRepoItem != null) viewRepoItem.ToolTipText = "Open the template repository in your default browser.";
         }
     }
 }
