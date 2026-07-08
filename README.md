@@ -19,7 +19,7 @@
 
 ---
 
-![Sample massing output](docs/images/sample-1.jpeg)
+![Sample massing outputs](docs/images/samples.gif)
 
 ## What it does
 
