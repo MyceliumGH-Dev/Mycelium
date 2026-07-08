@@ -10,7 +10,7 @@ on:
     inputs:
       package:
         description: 'Package name'
-        default: mycelium
+        default: Mycelium
         required: true
       versions:
         description: 'Space-separated versions, e.g. "0.1.0-beta.0 0.1.0.0"'

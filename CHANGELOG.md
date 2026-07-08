@@ -4,6 +4,15 @@ All notable changes to Mycelium are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0.1] - 2026-07-09
+
+### Changed
+- Yak package name capitalized `mycelium` → `Mycelium` (server lookups are case-insensitive, so this is cosmetic — matches the manifest/repo casing everywhere, Eddy3D-style).
+- Template component now syncs from a branch matching the running assembly version (was hardcoded to `main`); `quick_start.ghx` moved out of the plugin into [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates), no bundled templates ship anymore.
+
+### Removed
+- GitHub Release / Pre-Release workflows (tagged zip releases on GitHub). Yak remains the only distribution channel.
+
 ## [0.1.0.0] - 2026-07-08
 
 First release under the **Mycelium** name (previously *MetaForm*). Existing

@@ -110,7 +110,7 @@ jobs:
           # already there (idempotent; lets us backfill mac onto an existing win-only version).
           $existing = @()
           try {
-            $vers = Invoke-RestMethod "https://yak.rhino3d.com/versions/mycelium" -ErrorAction Stop
+            $vers = Invoke-RestMethod "https://yak.rhino3d.com/versions/Mycelium" -ErrorAction Stop
             $match = $vers | Where-Object { $_.version -eq $version }
             if ($match) { $existing = @($match.distributions | ForEach-Object { $_.filename }) }
           } catch { Write-Host "Could not query existing distributions: $_" }
@@ -152,7 +152,7 @@ jobs:
         if: ${{ inputs.publish }}
         shell: pwsh
         run: |
-          $packageName = 'mycelium'
+          $packageName = 'Mycelium'
           $expectedVersion = '${{ steps.version.outputs.version }}'
           for ($i = 1; $i -le 12; $i++) {
             if ('${{ inputs.channel }}' -eq 'pre-release') {

@@ -11,8 +11,8 @@
 
 <p align="center">
   <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
-  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2Fmycelium&query=%24.version&label=version&color=blue" alt="Version"/></a>
-  <a href="https://rhinopackages.github.io/?search=mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2Fmycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
+  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&label=version&color=blue" alt="Version"/></a>
+  <a href="https://rhinopackages.github.io/?search=Mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
 </p>
