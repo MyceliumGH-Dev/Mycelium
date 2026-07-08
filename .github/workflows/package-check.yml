@@ -1,6 +1,6 @@
 name: Package Check
 
-# Dry-run of the Yak packaging pipeline on every push and PR into main: builds the
+# Dry-run of the Yak packaging pipeline on every push and PR into dev: builds the
 # plugin, stages the package, and runs `yak build` — WITHOUT pushing to Yak. Catches
 # packaging breakage (missing/mis-pathed .gha, manifest issues, yak build failures)
 # before it can reach the pre-release / release branches. Uses the same reusable
@@ -10,10 +10,10 @@ name: Package Check
 on:
   push:
     branches:
-      - main
+      - dev
   pull_request:
     branches:
-      - main
+      - dev
   workflow_dispatch:
 
 jobs:

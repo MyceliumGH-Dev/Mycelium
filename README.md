@@ -103,7 +103,7 @@ The project targets `net7.0-windows` and builds on Windows, macOS, and Linux (`E
 scripts/package.sh
 ```
 
-This builds the solution, assembles `dist/`, and produces the `.yak` package using the yak CLI from a local Rhino 8 installation. The package version comes from the root `manifest.yml`. CI runs the same staging logic (see below) as a dry-run on every push and PR to `main`.
+This builds the solution, assembles `dist/`, and produces the `.yak` package using the yak CLI from a local Rhino 8 installation. The package version comes from the root `manifest.yml`. CI runs the same staging logic (see below) as a dry-run on every push and PR to `dev`.
 
 </details>
 
@@ -117,8 +117,8 @@ Publishing is fully automated through branch-triggered workflows (requires the `
 | `pre-release` | *Yak Pre-Release* | `X.Y.Z-beta.W` (visible with "include pre-releases") |
 | `release` | *Yak Release* | `X.Y.Z.W` (public) |
 
-1. Bump `version:` in `manifest.yml` (4-part `X.Y.Z.W`) and update `CHANGELOG.md` on `main`.
-2. Merge / fast-forward `main` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
+1. Bump `version:` in `manifest.yml` (4-part `X.Y.Z.W`) and update `CHANGELOG.md` on `dev`.
+2. Merge / fast-forward `dev` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
 3. When the beta checks out, push the same state to `release` for the public version.
 
 Pushes are idempotent (already-published distributions are skipped), and every run verifies the version is searchable on the server afterwards. To hide a bad version, run the *Yak Yank* workflow from the Actions tab.
