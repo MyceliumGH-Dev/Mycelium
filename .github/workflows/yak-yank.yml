@@ -1,0 +1,51 @@
+name: Yak Yank
+
+# Manual maintenance workflow: yank (unlist) or unyank (restore) published Mycelium
+# versions on the Yak server. Yak has no hard delete — yanking hides a version from
+# search and the Rhino Package Manager (it stays installable by exact version, and is
+# reversible via unyank). Dispatch with the versions to act on.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package name'
+        default: mycelium
+        required: true
+      versions:
+        description: 'Space-separated versions, e.g. "0.1.0-beta.0 0.1.0.0"'
+        required: true
+      action:
+        description: 'yank (hide) or unyank (restore)'
+        type: choice
+        options:
+          - yank
+          - unyank
+        default: yank
+
+jobs:
+  yank:
+    runs-on: windows-2022
+    env:
+      YAK_TOKEN: ${{ secrets.YAK_TOKEN_PATRICK }}
+
+    steps:
+      - name: Download Yak CLI
+        shell: pwsh
+        run: Invoke-WebRequest -Uri 'https://files.mcneel.com/yak/tools/0.13.0/yak.exe' -OutFile 'yak.exe'
+
+      - name: ${{ inputs.action }} versions
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:YAK_TOKEN)) { throw 'YAK_TOKEN secret is empty.' }
+          $pkg = '${{ inputs.package }}'
+          $act = '${{ inputs.action }}'
+          $versions = '${{ inputs.versions }}'.Trim() -split '\s+' | Where-Object { $_ }
+          if ($versions.Count -eq 0) { throw 'No versions provided.' }
+          foreach ($v in $versions) {
+            Write-Host "yak $act $pkg $v"
+            & .\yak.exe $act $pkg $v
+            if ($LASTEXITCODE -ne 0) { throw "yak $act failed for $pkg $v" }
+          }
+          Write-Host "`n--- Listed versions after $act ---"
+          & .\yak.exe search $pkg -a --prerelease

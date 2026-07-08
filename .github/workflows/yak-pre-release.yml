@@ -1,0 +1,16 @@
+name: Yak Pre-Release
+
+on:
+  push:
+    branches:
+      - pre-release
+  workflow_dispatch:
+
+jobs:
+  publish:
+    uses: ./.github/workflows/_package.yml
+    with:
+      channel: pre-release
+      publish: true
+    secrets:
+      YAK_TOKEN: ${{ secrets.YAK_TOKEN_PATRICK }}

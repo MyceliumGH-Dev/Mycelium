@@ -9,14 +9,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT="$REPO_ROOT/src/Mycelium/Mycelium.csproj"
 OUT="$REPO_ROOT/src/Mycelium/bin/Release/net7.0-windows"
 DIST="$REPO_ROOT/dist"
 
-VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' "$PROJECT")
-echo "Packaging Mycelium $VERSION"
+# Version source of truth is the root manifest.yml (4-part X.Y.Z.W, same as CI).
+VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' "$REPO_ROOT/manifest.yml" | head -1)
+ASSEMBLY_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
+echo "Packaging Mycelium $VERSION (assembly $ASSEMBLY_VERSION)"
 
-dotnet build "$REPO_ROOT/Mycelium.sln" -c Release
+dotnet build "$REPO_ROOT/Mycelium.sln" -c Release -p:Version="$ASSEMBLY_VERSION"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
@@ -24,7 +25,7 @@ mkdir -p "$DIST"
 cp "$OUT/Mycelium.gha" "$DIST/"
 cp -R "$REPO_ROOT/src/Mycelium/Templates" "$DIST/Templates"
 cp "$REPO_ROOT/docs/images/logo.png" "$DIST/icon.png"
-sed "s/^version: .*/version: $VERSION/" "$REPO_ROOT/src/Mycelium/manifest.yml" > "$DIST/manifest.yml"
+cp "$REPO_ROOT/manifest.yml" "$DIST/manifest.yml"
 
 # Find a yak CLI
 YAK=""
@@ -45,5 +46,5 @@ echo
 echo "Package ready:"
 ls -la "$DIST"/*.yak
 echo
-echo "To publish (requires Rhino account login):"
-echo "  cd dist && \"$YAK\" login && \"$YAK\" push mycelium-$VERSION-rh8_0-any.yak"
+echo "Publishing happens via CI: push to the pre-release or release branch."
+echo "Manual fallback: cd dist && \"$YAK\" login && \"$YAK\" push <package>.yak"

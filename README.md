@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/build.yml/badge.svg" alt="Build"/></a>
+  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
 </p>
@@ -95,30 +95,31 @@ The project targets `net7.0-windows` and builds on Windows, macOS, and Linux (`E
 </details>
 
 <details>
-<summary><b>Creating a Yak package</b></summary>
+<summary><b>Creating a Yak package locally</b></summary>
 
 ```bash
 scripts/package.sh
 ```
 
-This builds the solution, assembles `dist/`, and produces `mycelium-<version>-rh8_0-any.yak` using the yak CLI from a local Rhino 8 installation. CI does the same on every push and attaches the package to the GitHub release on version tags (`v*`).
-
-To publish to the [Yak server](https://developer.rhino3d.com/guides/yak/):
-
-```bash
-cd dist
-yak login
-yak push mycelium-<version>-rh8_0-any.yak
-```
+This builds the solution, assembles `dist/`, and produces the `.yak` package using the yak CLI from a local Rhino 8 installation. The package version comes from the root `manifest.yml`. CI runs the same staging logic (see below) as a dry-run on every push and PR to `main`.
 
 </details>
 
 <details>
-<summary><b>Releasing a new version</b></summary>
+<summary><b>Releasing to the Package Manager</b></summary>
 
-1. Bump `<Version>` in `src/Mycelium/Mycelium.csproj` and update `CHANGELOG.md`.
-2. Tag: `git tag v<version> && git push --tags`.
-3. CI builds the `.yak` and attaches it to the GitHub release; push it to the Yak server manually.
+Publishing is fully automated through branch-triggered workflows (requires the `YAK_TOKEN_PATRICK` repository secret):
+
+| Branch push | Workflow | Result on the Yak server |
+|---|---|---|
+| `pre-release` | *Yak Pre-Release* | `X.Y.Z-beta.W` (visible with "include pre-releases") |
+| `release` | *Yak Release* | `X.Y.Z.W` (public) |
+
+1. Bump `version:` in `manifest.yml` (4-part `X.Y.Z.W`) and update `CHANGELOG.md` on `main`.
+2. Merge / fast-forward `main` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
+3. When the beta checks out, push the same state to `release` for the public version.
+
+Pushes are idempotent (already-published distributions are skipped), and every run verifies the version is searchable on the server afterwards. To hide a bad version, run the *Yak Yank* workflow from the Actions tab.
 
 </details>
 

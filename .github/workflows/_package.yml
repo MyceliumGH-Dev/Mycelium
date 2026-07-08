@@ -1,0 +1,173 @@
+name: Package (reusable)
+
+# Reusable Mycelium packaging pipeline (same scheme as Eddy3D). Builds the plugin,
+# stages the Yak package, and runs `yak build` to validate it. With publish: true it
+# also pushes to Yak and verifies; with publish: false (the dry-run) it stops after
+# building the package and uploads it as an artifact — so packaging breakage is caught
+# in PRs BEFORE it can reach a release branch. Called by package-check, yak-pre-release
+# and yak-release so all three exercise the exact same build + staging logic (no drift).
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: "'pre-release' (X.Y.Z-beta.W) or 'release' (X.Y.Z.W)"
+        type: string
+        default: 'pre-release'
+      publish:
+        description: 'Push to Yak (true) or dry-run build only (false)'
+        type: boolean
+        default: false
+    secrets:
+      YAK_TOKEN:
+        description: 'Yak auth token; required only when publish is true'
+        required: false
+
+jobs:
+  package:
+    runs-on: windows-2022
+    env:
+      YAK_TOKEN: ${{ secrets.YAK_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Read Mycelium version
+        id: version
+        shell: pwsh
+        run: |
+          $content = Get-Content 'manifest.yml' -Raw
+          $match = [regex]::Match($content, '(?m)^version:\s*(.+)$')
+          if (-not $match.Success) { throw 'Could not read version from manifest.yml' }
+          $fullVersion = $match.Groups[1].Value.Trim()
+          $parts = $fullVersion -split '\.'
+          if ($parts.Length -lt 4) { throw "Expected a 4-part version, got '$fullVersion'" }
+          if ('${{ inputs.channel }}' -eq 'pre-release') {
+            $version = "$($parts[0]).$($parts[1]).$($parts[2])-beta.$($parts[3])"
+          } else {
+            $version = $fullVersion
+          }
+          $assemblyVersion = "$($parts[0]).$($parts[1]).$($parts[2])"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "assembly_version=$assemblyVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Channel '${{ inputs.channel }}' -> package version $version (assembly $assemblyVersion)"
+
+      - name: Build plugin
+        shell: pwsh
+        run: |
+          # Assembly version follows the manifest so plugin metadata never drifts from the package.
+          dotnet build src/Mycelium/Mycelium.csproj -c Release -p:Version=${{ steps.version.outputs.assembly_version }}
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+
+      - name: Prepare Yak package contents
+        id: stage
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:GITHUB_WORKSPACE 'yak-package'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          $gha = Get-ChildItem -Path 'src/Mycelium/bin/Release' -Recurse -Filter 'Mycelium.gha' |
+                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $gha) { throw 'Expected Mycelium.gha under src/Mycelium/bin/Release (build output missing)' }
+
+          Copy-Item $gha.FullName $stage -Force
+          Copy-Item -Recurse (Join-Path $gha.DirectoryName 'Templates') (Join-Path $stage 'Templates') -Force
+          Copy-Item 'docs/images/logo.png' (Join-Path $stage 'icon.png') -Force
+
+          # Stamp the resolved channel version into the staged manifest.
+          (Get-Content manifest.yml -Raw) -replace '(?m)^version:\s*.+$', 'version: ${{ steps.version.outputs.version }}' |
+            Set-Content (Join-Path $stage 'manifest.yml')
+
+          "stage=$stage" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Download Yak CLI
+        shell: pwsh
+        run: Invoke-WebRequest -Uri 'https://files.mcneel.com/yak/tools/0.13.0/yak.exe' -OutFile 'yak.exe'
+
+      - name: Build and publish Yak distributions (win + mac)
+        shell: pwsh
+        run: |
+          $publish = '${{ inputs.publish }}' -eq 'true'
+          if ($publish -and [string]::IsNullOrWhiteSpace($env:YAK_TOKEN)) {
+            throw 'publish is true but YAK_TOKEN secret is empty.'
+          }
+
+          $stage = '${{ steps.stage.outputs.stage }}'
+          $yak = "$env:GITHUB_WORKSPACE\yak.exe"
+          $version = '${{ steps.version.outputs.version }}'
+          $outDir = Join-Path $env:GITHUB_WORKSPACE 'yak-dist'
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          # The plugin loads on both Windows and Mac Rhino 8, so publish one distribution per
+          # platform. Yak needs an explicit mac distribution or the Mac Package Manager hides
+          # the package. Distributions are additive per version: before pushing we check the
+          # server for an existing <version>-<platform> distribution and skip the push if it is
+          # already there (idempotent; lets us backfill mac onto an existing win-only version).
+          $existing = @()
+          try {
+            $vers = Invoke-RestMethod "https://yak.rhino3d.com/versions/mycelium" -ErrorAction Stop
+            $match = $vers | Where-Object { $_.version -eq $version }
+            if ($match) { $existing = @($match.distributions | ForEach-Object { $_.filename }) }
+          } catch { Write-Host "Could not query existing distributions: $_" }
+
+          foreach ($platform in @('win', 'mac')) {
+            Push-Location $stage
+            try {
+              Get-ChildItem -Filter '*.yak' | Remove-Item -Force -ErrorAction SilentlyContinue
+              & $yak build --platform $platform
+              if ($LASTEXITCODE -ne 0) { throw "yak build ($platform) failed with exit code $LASTEXITCODE" }
+              $pkg = Get-ChildItem -Filter '*.yak' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+              if (-not $pkg) { throw "yak build ($platform) produced no .yak" }
+              $dest = Join-Path $outDir $pkg.Name
+              Copy-Item $pkg.FullName $dest -Force
+              Write-Host "Built $platform distribution: $($pkg.Name)"
+            } finally {
+              Pop-Location
+            }
+
+            if ($publish) {
+              if ($existing | Where-Object { $_ -match "-$platform\.yak$" }) {
+                Write-Host "$platform distribution already published for $version - skipping push."
+              } else {
+                & $yak push $dest
+                if ($LASTEXITCODE -ne 0) { throw "yak push ($platform) failed with exit code $LASTEXITCODE" }
+                Write-Host "Pushed $platform distribution for $version."
+              }
+            }
+          }
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mycelium-yak-${{ steps.version.outputs.version }}
+          path: ${{ github.workspace }}/yak-dist/*.yak
+          if-no-files-found: error
+
+      - name: Verify on Yak
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        run: |
+          $packageName = 'mycelium'
+          $expectedVersion = '${{ steps.version.outputs.version }}'
+          for ($i = 1; $i -le 12; $i++) {
+            if ('${{ inputs.channel }}' -eq 'pre-release') {
+              $result = & .\yak.exe search $packageName -a --prerelease 2>&1
+            } else {
+              $result = & .\yak.exe search $packageName -a 2>&1
+            }
+            $resultText = $result -join "`n"
+            Write-Host $resultText
+            if ($resultText -match [Regex]::Escape($expectedVersion)) {
+              Write-Host "Verified on Yak: $packageName $expectedVersion"
+              exit 0
+            }
+            Write-Host "Attempt ${i}/12: $expectedVersion not visible yet. Retrying in 10s..."
+            Start-Sleep -Seconds 10
+          }
+          throw "Yak verification failed: $packageName $expectedVersion not found."

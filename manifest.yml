@@ -1,7 +1,10 @@
 # Yak package manifest for Mycelium.
-# The version field is overwritten from Mycelium.csproj by scripts/package.sh / CI.
+# The version here is the single source of truth for packaging (4-part X.Y.Z.W):
+#   release channel     -> X.Y.Z.W
+#   pre-release channel -> X.Y.Z-beta.W
+# CI stamps the resolved channel version into the staged copy before `yak build`.
 name: mycelium
-version: 0.1.0
+version: 0.1.0.0
 authors:
   - Ilker Karadag
   - Patrick Kastner

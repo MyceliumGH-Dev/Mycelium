@@ -1,0 +1,24 @@
+name: Package Check
+
+# Dry-run of the Yak packaging pipeline on every push and PR into main: builds the
+# plugin, stages the package, and runs `yak build` — WITHOUT pushing to Yak. Catches
+# packaging breakage (missing/mis-pathed .gha, manifest issues, yak build failures)
+# before it can reach the pre-release / release branches. Uses the same reusable
+# workflow as the real releases, so the check can never drift from them.
+# No YAK_TOKEN is passed, so this runs on PRs (including forks) without secret access.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  package-check:
+    uses: ./.github/workflows/_package.yml
+    with:
+      channel: pre-release
+      publish: false
