@@ -56,13 +56,18 @@ jobs:
           $assemblyVersion = "$($parts[0]).$($parts[1]).$($parts[2])"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "assembly_version=$assemblyVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Channel '${{ inputs.channel }}' -> package version $version (assembly $assemblyVersion)"
+          "source_version=$fullVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Channel '${{ inputs.channel }}' -> package version $version (assembly $assemblyVersion, templates branch $fullVersion)"
 
       - name: Build plugin
         shell: pwsh
         run: |
-          # Assembly version follows the manifest so plugin metadata never drifts from the package.
-          dotnet build src/Mycelium/Mycelium.csproj -c Release -p:Version=${{ steps.version.outputs.assembly_version }}
+          # AssemblyVersion gets the full 4-part manifest version: the template component
+          # derives its Mycelium-Templates sync branch from it, so it must match the
+          # branch name in that repo exactly (one branch per released version).
+          dotnet build src/Mycelium/Mycelium.csproj -c Release `
+            -p:Version=${{ steps.version.outputs.assembly_version }} `
+            -p:AssemblyVersion=${{ steps.version.outputs.source_version }}
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 
       - name: Prepare Yak package contents

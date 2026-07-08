@@ -118,8 +118,9 @@ Publishing is fully automated through branch-triggered workflows (requires the `
 | `release` | *Yak Release* | `X.Y.Z.W` (public) |
 
 1. Bump `version:` in `manifest.yml` (4-part `X.Y.Z.W`) and update `CHANGELOG.md` on `dev`.
-2. Merge / fast-forward `dev` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
-3. When the beta checks out, push the same state to `release` for the public version.
+2. **Create the matching branch in [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates)** (`git push origin main:X.Y.Z.W` there) — the Templates component syncs from the branch named after the plugin version.
+3. Merge / fast-forward `dev` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
+4. When the beta checks out, push the same state to `release` for the public version.
 
 Pushes are idempotent (already-published distributions are skipped), and every run verifies the version is searchable on the server afterwards. To hide a bad version, run the *Yak Yank* workflow from the Actions tab.
 

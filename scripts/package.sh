@@ -17,7 +17,9 @@ VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' "$REPO_ROOT/manifest.yml"
 ASSEMBLY_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
 echo "Packaging Mycelium $VERSION (assembly $ASSEMBLY_VERSION)"
 
-dotnet build "$REPO_ROOT/Mycelium.sln" -c Release -p:Version="$ASSEMBLY_VERSION"
+# AssemblyVersion carries the full 4-part version: the template component derives its
+# Mycelium-Templates sync branch from it (one branch per released version).
+dotnet build "$REPO_ROOT/Mycelium.sln" -c Release -p:Version="$ASSEMBLY_VERSION" -p:AssemblyVersion="$VERSION"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
