@@ -18,18 +18,29 @@ namespace Mycelium.Components
     /// Template browser adopted from Eddy3D's Select Template component: syncs the template
     /// list from the Mycelium-Templates GitHub repository, caches it locally, downloads
     /// definitions on demand, and merges the chosen template into the current document.
-    /// Bundled templates (shipped next to the plugin) and user folders / GitHub URLs from
-    /// the Directory input are offered alongside.
+    /// User folders / GitHub URLs from the Directory input are offered alongside.
     /// </summary>
     public class TemplateComponent : GH_Component
     {
         // --- GitHub repository configuration ---
-        private const string RepoOwner = "SustainableUrbanSystemsLab";
-        private const string RepoName = "Mycelium-Templates";
-        // Templates track main for now; switch to version branches (Eddy3D style) once the
-        // template repo starts branching per release.
-        private const string RepoBranch = "main";
+        private static readonly string RepoOwner = "SustainableUrbanSystemsLab";
+        private static readonly string RepoName = "Mycelium-Templates";
+        private static readonly string RepoBranch = GetBranchFromVersion();
         // ----------------------------------------
+
+        /// <summary>
+        /// Converts the assembly version (e.g. "0.1.0.0") to a Mycelium-Templates branch name.
+        /// Mirrors Eddy3D: templates branch per exact release version. Falls back to "main"
+        /// if the version can't be read (e.g. running unbuilt from a debugger).
+        /// </summary>
+        private static string GetBranchFromVersion()
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            if (version == null) return "main";
+
+            var result = version.ToString();
+            return string.IsNullOrWhiteSpace(result) ? "main" : result;
+        }
 
         private TemplateCache _cache = new TemplateCache();
         private bool _isFetching;
@@ -60,7 +71,7 @@ namespace Mycelium.Components
           : base("Mycelium Templates", "Templates",
               "Load example Grasshopper definitions for common Mycelium workflows.\n\n" +
               "Templates are synced from the Mycelium-Templates GitHub repository; " +
-              "bundled templates and your own folders are offered alongside.",
+              "your own folders and GitHub URLs are offered alongside.",
               "Mycelium", "Utilities")
         {
         }
@@ -120,9 +131,6 @@ namespace Mycelium.Components
             // 3. Collect all template paths
             var allFiles = new List<string>();
 
-            foreach (var file in BundledTemplates())
-                allFiles.Add(file);
-
             foreach (var file in _cache.Files)
                 allFiles.Add(Path.Combine(MainRepoDir, file));
 
@@ -166,21 +174,6 @@ namespace Mycelium.Components
             }
 
             DA.SetDataList(0, allFiles);
-        }
-
-        /// <summary>Templates shipped in the plugin's own Templates folder (offline fallback).</summary>
-        private IEnumerable<string> BundledTemplates()
-        {
-            var pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var bundled = Path.Combine(pluginDir ?? string.Empty, "Templates");
-            if (!Directory.Exists(bundled)) yield break;
-
-            foreach (var f in Directory.GetFiles(bundled, "*.gh*", SearchOption.AllDirectories))
-            {
-                if (f.EndsWith(".gh", StringComparison.OrdinalIgnoreCase)
-                 || f.EndsWith(".ghx", StringComparison.OrdinalIgnoreCase))
-                    yield return f;
-            }
         }
 
         // --- GitHub URL handling (ported from Eddy3D, incl. path-traversal guard) ---
@@ -474,22 +467,6 @@ namespace Mycelium.Components
             var sourceItem = Menu_AppendItem(menu, TemplateSourceLabel, (s, e) => OpenGitHubRepository());
             sourceItem.ToolTipText = $"Templates are fetched from {RepoOwner}/{RepoName} ({RepoBranch}). Click to view on GitHub.";
             menu.Items.Add(new ToolStripSeparator());
-
-            // Bundled templates (always available offline)
-            var bundled = BundledTemplates().ToList();
-            foreach (var file in bundled)
-            {
-                var item = new ToolStripMenuItem("📦 " + Path.GetFileNameWithoutExtension(file), null, (s, e) =>
-                {
-                    InsertTemplate(file);
-                    ExpireSolution(true);
-                })
-                {
-                    ToolTipText = $"Bundled template: {file}"
-                };
-                menu.Items.Add(item);
-            }
-            if (bundled.Count > 0) menu.Items.Add(new ToolStripSeparator());
 
             if (_isFetching)
             {

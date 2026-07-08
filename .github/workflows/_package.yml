@@ -77,7 +77,6 @@ jobs:
           if (-not $gha) { throw 'Expected Mycelium.gha under src/Mycelium/bin/Release (build output missing)' }
 
           Copy-Item $gha.FullName $stage -Force
-          Copy-Item -Recurse (Join-Path $gha.DirectoryName 'Templates') (Join-Path $stage 'Templates') -Force
           Copy-Item 'docs/images/logo.png' (Join-Path $stage 'icon.png') -Force
 
           # Stamp the resolved channel version into the staged manifest.

@@ -59,7 +59,6 @@ jobs:
           if (-not $gha) { throw 'Missing Mycelium.gha under src/Mycelium/bin/Release (build output missing)' }
 
           Copy-Item $gha.FullName $stage -Force
-          Copy-Item -Recurse (Join-Path $gha.DirectoryName 'Templates') (Join-Path $stage 'Templates') -Force
           Copy-Item 'manifest.yml' (Join-Path $stage 'manifest.yml') -Force
           Copy-Item 'docs/images/logo.png' (Join-Path $stage 'icon.png') -Force
 

@@ -74,7 +74,7 @@ Each Building Type Config component exposes: floor range, corner radius, minimum
 
 ## Quick start
 
-Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists the bundled *quick_start* definition plus every template from the [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository (downloaded and cached on first use). Click one to insert a working example graph next to the component.
+Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists every template from the [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository, synced from the branch matching this plugin's version (downloaded and cached on first use). Click one to insert a working example graph next to the component.
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 
@@ -133,12 +133,13 @@ Pushes are idempotent (already-published distributions are skipped), and every r
 ├── src/Mycelium/           # Plugin source (C#, .gha)
 │   ├── Components/         # Grasshopper components
 │   ├── Core/               # Geometry + noise logic (no GH dependencies)
-│   ├── Icons/              # 24x24 component icons
-│   └── Templates/          # .ghx templates shipped with the package
+│   └── Icons/              # 24x24 component icons
 ├── docs/                   # Documentation and images
 ├── scripts/package.sh      # Local Yak packaging
 └── .github/workflows/      # CI, packaging dry-run, Yak release channels
 ```
+
+Example `.gh`/`.ghx` definitions live in the separate [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository, branched per plugin version.
 
 </details>
 

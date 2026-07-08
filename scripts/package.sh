@@ -23,7 +23,6 @@ rm -rf "$DIST"
 mkdir -p "$DIST"
 
 cp "$OUT/Mycelium.gha" "$DIST/"
-cp -R "$REPO_ROOT/src/Mycelium/Templates" "$DIST/Templates"
 cp "$REPO_ROOT/docs/images/logo.png" "$DIST/icon.png"
 cp "$REPO_ROOT/manifest.yml" "$DIST/manifest.yml"
 
