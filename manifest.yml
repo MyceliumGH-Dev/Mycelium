@@ -6,8 +6,7 @@
 name: Mycelium
 version: 0.1.0.0
 authors:
-  - Ilker Karadag
-  - Patrick Kastner
+  - Ilker Karadag, Patrick Kastner
 description: >
   Generative urban massing for Grasshopper. Subdivide a parcel into blocks and
   streets, grow building typologies (courtyard, linear, point, L-shape, U-shape,
