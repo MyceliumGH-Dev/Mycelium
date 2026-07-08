@@ -59,7 +59,8 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 | **Terrain Generator** | Mycelium / Site | Procedural terrain from OpenSimplex noise ([docs](docs/terrain-generator.md)) |
 | **Mycelium Templates** | Mycelium / Utilities | Insert bundled example definitions via right-click |
 
-### Massing Generator I/O
+<details>
+<summary><b>Massing Generator inputs &amp; outputs</b></summary>
 
 **Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed.
 
@@ -67,13 +68,18 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 
 Each Building Type Config component exposes: floor range, corner radius, minimum footprint area, setback range, and building depth range. Feed any combination of configs into the generator — each block picks one at random.
 
+</details>
+
 ## Quick start
 
 Drop a **Mycelium Templates** component on the canvas, right-click it, and insert *quick_start* — a working example graph wired up for you.
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 
-## Building from source
+## Development
+
+<details>
+<summary><b>Building from source</b></summary>
 
 Requires the [.NET SDK](https://dotnet.microsoft.com/download) (8.0 or newer).
 
@@ -86,7 +92,10 @@ dotnet build Mycelium.sln -c Release
 
 The project targets `net7.0-windows` and builds on Windows, macOS, and Linux (`EnableWindowsTargeting`). The Grasshopper NuGet package ships .NET Framework reference assemblies; Rhino 8 supplies the real .NET 7 assemblies at run time, so the NU1701 restore warning is suppressed intentionally.
 
-### Creating a Yak package
+</details>
+
+<details>
+<summary><b>Creating a Yak package</b></summary>
 
 ```bash
 scripts/package.sh
@@ -102,13 +111,19 @@ yak login
 yak push mycelium-<version>-rh8_0-any.yak
 ```
 
-### Releasing
+</details>
+
+<details>
+<summary><b>Releasing a new version</b></summary>
 
 1. Bump `<Version>` in `src/Mycelium/Mycelium.csproj` and update `CHANGELOG.md`.
 2. Tag: `git tag v<version> && git push --tags`.
 3. CI builds the `.yak` and attaches it to the GitHub release; push it to the Yak server manually.
 
-## Repository layout
+</details>
+
+<details>
+<summary><b>Repository layout</b></summary>
 
 ```
 ├── src/Mycelium/           # Plugin source (C#, .gha)
@@ -121,6 +136,8 @@ yak push mycelium-<version>-rh8_0-any.yak
 ├── scripts/package.sh      # Local Yak packaging
 └── .github/workflows/      # CI: build + package + release
 ```
+
+</details>
 
 ## Authors
 
