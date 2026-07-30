@@ -134,7 +134,8 @@ Pushes are idempotent (already-published distributions are skipped), and every r
 ├── src/Mycelium/           # Plugin source (C#, .gha)
 │   ├── Components/         # Grasshopper components
 │   ├── Core/               # Geometry + noise logic (no GH dependencies)
-│   └── Icons/              # 24x24 component icons
+│   └── Icons/              # 24x24 component icons (shipped, embedded in the .gha)
+├── design/icons/           # Icon vector source, generator and glyph↔component contract
 ├── docs/                   # Documentation and images
 ├── scripts/package.sh      # Local Yak packaging
 └── .github/workflows/      # CI, packaging dry-run, Yak release channels
