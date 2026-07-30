@@ -30,6 +30,28 @@ instead of the ones matching their installed version.
 The templates repo's `main` tracks development; version branches are frozen
 snapshots matching each release.
 
+## Icons
+
+- Shipped icons are 24×24 PNGs in `src/Mycelium/Icons/`, embedded by the csproj glob and
+  resolved by `ComponentIcons.Get("<name>")`. A miss returns **null** and Grasshopper draws
+  its default box — it never errors, so a typo is invisible in every build.
+- The name is the wiring, and unlike Eddy3D it is an explicit string literal in the
+  component. Never rename a glyph without changing that literal in the same commit.
+- Every visible component needs a distinct icon, and the assembly mark must not share a
+  silhouette with any component glyph.
+- The drawing language (space, two stroke weights, projection, family accents from the
+  brand palette) and the per-glyph brief live in
+  [design/icons/BRIEF.md](design/icons/BRIEF.md); what was actually built, and how to
+  regenerate it, is [design/icons/README.md](design/icons/README.md). The glyph↔component
+  contract is [design/icons/manifest.csv](design/icons/manifest.csv) — every row has a
+  glyph, every glyph has a row. Read the brief before drawing.
+- The PNGs are generated, not hand-drawn: `design/icons/src/myc-vec.js` is the engine and
+  `myc-vec-set.js` holds one `def()` per glyph. Change a glyph there and re-rasterise at
+  24×24 — never draw large and downscale, the 1.25 stroke has to land on the pixel grid.
+- The plugin logo (`docs/images/logo.svg`) wraps the `Mycelium` assembly mark in the cream
+  rounded square. It damps the glyph's strokes to 0.67 so they land near 12px at 512 rather
+  than the ~18px a straight 14× scale-up would give, which fills in the massing volumes.
+
 ## Build & packaging
 
 - `dotnet build Mycelium.sln -c Release` builds on any OS (`EnableWindowsTargeting`); NU1701 is suppressed intentionally (Grasshopper NuGet ships net48 ref assemblies, Rhino 8 provides .NET 7 at runtime).

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #EFEBE0; }
+  * { box-sizing: border-box; }
+  a { color: #29473A; text-underline-offset: 3px; }
+  a:hover { color: #6B4F35; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #EFEBE0; color: #29473A; font-family: Archivo, system-ui, sans-serif; padding: 56px clamp(20px, 4vw, 48px) 96px; display: flex; flex-direction: column; align-items: center;">
+  {{ sprite }}
+
+  <div style="width: 100%; max-width: 1180px; display: flex; flex-direction: column; gap: 44px;">
+
+    <header style="display: grid; grid-template-columns: 1fr 300px; gap: 48px; align-items: end; padding-bottom: 28px; border-bottom: 1.5px solid rgba(41,71,58,0.22);">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #5F6C64;">design/icons · contact sheet</div>
+        <h1 style="margin: 0; font-size: 52px; line-height: 0.98; font-weight: 600; letter-spacing: -0.025em;">Mycelium Icon System</h1>
+        <p style="margin: 0; max-width: 46ch; font-size: 15.5px; line-height: 1.5; color: #4A574F; text-wrap: pretty;">Eleven glyphs drawn by one engine. One isometric, two stroke weights, four family accents — so the set reads as a set and a twelfth glyph costs a <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13.5px;">def()</span>, not a redraw.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #4A574F;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(41,71,58,0.13); padding-bottom: 6px;"><span>glyphs</span><span style="color: #29473A;">{{ count }}</span></div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(41,71,58,0.13); padding-bottom: 6px;"><span>space</span><span style="color: #29473A;">24 × 24 · safe 0.7–23.3</span></div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(41,71,58,0.13); padding-bottom: 6px;"><span>stroke</span><span style="color: #29473A;">1.25 / 0.85</span></div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(41,71,58,0.13); padding-bottom: 6px;"><span>projection</span><span style="color: #29473A;">30° iso, above-left</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>guard</span><span style="color: #29473A;">{{ guardLine }}</span></div>
+      </div>
+    </header>
+
+    <sc-if value="{{ err }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 18px 22px; background: #6B4F35; color: #F1EDE1; font-family: 'IBM Plex Mono', monospace; font-size: 13px; border-radius: 2px;">{{ err }}</div>
+    </sc-if>
+
+    <section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;">
+      <sc-for list="{{ families }}" as="f" hint-placeholder-count="4">
+        <div style="background: #FBF9F4; border: 1px solid rgba(41,71,58,0.12); padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 22px; height: 22px; border-radius: 50%; background: {{ f.accent }};"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500;">{{ f.key }}</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5F6C64;">{{ f.name }} {{ f.accent }}</div>
+          <div style="font-size: 13px; line-height: 1.4; color: #4A574F; text-wrap: pretty;">{{ f.applies }}</div>
+        </div>
+      </sc-for>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 0;">
+      <div style="display: grid; grid-template-columns: 250px 1fr; gap: 28px; padding-bottom: 12px; border-bottom: 1.5px solid rgba(41,71,58,0.22); font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase; color: #5F6C64;">
+        <div>glyph</div>
+        <div style="display: flex; gap: 28px; flex-wrap: wrap;"><div style="width: {{ big }};">construction</div><div>48 · 24 · 16</div><div style="margin-left: auto;">grasshopper canvas · dark (stress only)</div></div>
+      </div>
+
+      <sc-for list="{{ rows }}" as="g" hint-placeholder-count="11">
+        <div style="display: grid; grid-template-columns: 250px 1fr; gap: 28px; padding: 22px 0; border-bottom: 1px solid rgba(41,71,58,0.13); align-items: center;">
+          <div style="display: flex; flex-direction: column; gap: 7px;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; font-weight: 500; letter-spacing: -0.01em;">{{ g.name }}</div>
+            <div style="font-size: 13px; color: #4A574F;">{{ g.component }}</div>
+            <div style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap;">
+              <span style="display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: #5F6C64; border: 1px solid rgba(41,71,58,0.18); padding: 2px 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ g.accent }};"></span>{{ g.family }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: #5F6C64; border: 1px solid rgba(41,71,58,0.18); padding: 2px 6px; white-space: nowrap;">{{ g.panel }}</span>
+            </div>
+            <sc-if value="{{ showConstruction }}" hint-placeholder-val="{{ true }}">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #8A9189; line-height: 1.5;">M.{{ g.motif }} + B.{{ g.badge }}</div>
+            </sc-if>
+          </div>
+
+          <div style="display: flex; gap: 28px; row-gap: 18px; align-items: center; flex-wrap: wrap;">
+            <div style="position: relative; width: {{ big }}; height: {{ big }}; background: #FBF9F4; border: 1px solid rgba(41,71,58,0.12); flex: none;">
+              <svg viewBox="0 0 24 24" width="100%" height="100%" style="display: block;"><use href="{{ g.href }}"></use></svg>
+              <sc-if value="{{ showGrid }}" hint-placeholder-val="{{ false }}">
+                <svg viewBox="0 0 24 24" width="100%" height="100%" style="position: absolute; inset: 0; pointer-events: none;">
+                  <rect x="0.7" y="0.7" width="22.6" height="22.6" fill="none" stroke="#C4463A" stroke-width="0.12" stroke-dasharray="0.7 0.5"></rect>
+                  <circle cx="17" cy="17" r="4.4" fill="none" stroke="#C4463A" stroke-width="0.12" stroke-dasharray="0.7 0.5"></circle>
+                  <line x1="12" y1="0" x2="12" y2="24" stroke="#C4463A" stroke-width="0.08"></line>
+                  <line x1="0" y1="12" x2="24" y2="12" stroke="#C4463A" stroke-width="0.08"></line>
+                </svg>
+              </sc-if>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <svg viewBox="0 0 24 24" width="48" height="48" style="display: block;"><use href="{{ g.href }}"></use></svg>
+              <svg viewBox="0 0 24 24" width="24" height="24" style="display: block;"><use href="{{ g.href }}"></use></svg>
+              <svg viewBox="0 0 24 24" width="16" height="16" style="display: block;"><use href="{{ g.href }}"></use></svg>
+            </div>
+
+            <div style="margin-left: auto; display: flex; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 10px; background: #D6D6D2; padding: 12px 14px;">
+                <svg viewBox="0 0 24 24" width="32" height="32" style="display: block;"><use href="{{ g.href }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" style="display: block;"><use href="{{ g.href }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="display: block;"><use href="{{ g.href }}"></use></svg>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; background: #1B2A23; padding: 12px 14px;">
+                <svg viewBox="0 0 24 24" width="32" height="32" style="display: block;"><use href="{{ g.href }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" style="display: block;"><use href="{{ g.href }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="display: block;"><use href="{{ g.href }}"></use></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 20px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase; color: #5F6C64;">confusion check — the pairs that failed in the old set</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px;">
+        <sc-for list="{{ pairs }}" as="p" hint-placeholder-count="3">
+          <div style="background: #FBF9F4; border: 1px solid rgba(41,71,58,0.12); padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; align-items: flex-end; flex-wrap: wrap; gap: 16px; background: #D6D6D2; padding: 14px 16px;">
+              <div style="display: flex; align-items: flex-end; gap: 8px;">
+                <svg viewBox="0 0 24 24" width="32" height="32" style="display: block;"><use href="{{ p.aHref }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" style="display: block;"><use href="{{ p.aHref }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="display: block;"><use href="{{ p.aHref }}"></use></svg>
+              </div>
+              <div style="width: 1px; align-self: stretch; background: rgba(41,71,58,0.2);"></div>
+              <div style="display: flex; align-items: flex-end; gap: 8px;">
+                <svg viewBox="0 0 24 24" width="32" height="32" style="display: block;"><use href="{{ p.bHref }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" style="display: block;"><use href="{{ p.bHref }}"></use></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="display: block;"><use href="{{ p.bHref }}"></use></svg>
+              </div>
+            </div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #29473A;">{{ p.label }}</div>
+            <div style="font-size: 13px; line-height: 1.45; color: #4A574F; text-wrap: pretty;">{{ p.why }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 44px; padding-top: 32px; border-top: 1.5px solid rgba(41,71,58,0.22);">
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase; color: #5F6C64;">the rules the engine enforces</div>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <sc-for list="{{ rules }}" as="r" hint-placeholder-count="6">
+            <div style="display: grid; grid-template-columns: 108px 1fr; gap: 16px; align-items: baseline;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #29473A;">{{ r.k }}</div>
+              <div style="font-size: 13.5px; line-height: 1.5; color: #4A574F; text-wrap: pretty;">{{ r.v }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase; color: #5F6C64;">wiring — the file name is the contract</div>
+        <div style="background: #1B2A23; color: #C8D3CB; padding: 20px 22px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.85; overflow-x: auto;">
+          <div style="color: #7E9469;">// src/Mycelium/*.cs — ComponentIcons.Get returns null on a miss</div>
+          <sc-for list="{{ rows }}" as="g" hint-placeholder-count="11">
+            <div><span style="color: #8FA7A0;">ComponentIcons.Get(</span><span style="color: #F1EDE1;">"{{ g.name }}"</span><span style="color: #8FA7A0;">);</span></div>
+          </sc-for>
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A574F; text-wrap: pretty;">Every glyph in <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px;">svg/</span> has a <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px;">manifest.csv</span> row and a shipped 24 × 24 PNG under the same base name. Renaming a glyph means editing the string literal in the component in the same commit — nothing errors on a miss, the icon just quietly disappears.</div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;bigSize&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:96,&quot;min&quot;:48,&quot;max&quot;:192,&quot;step&quot;:8,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Contact sheet&quot;},&quot;showGrid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Contact sheet&quot;},&quot;showConstruction&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Contact sheet&quot;}}">
+class Component extends DCLogic {
+  state = { ready: false, err: null };
+
+  componentDidMount() {
+    const load = (src) => new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = res;
+      s.onerror = () => rej(new Error('could not load ' + src));
+      document.head.appendChild(s);
+    });
+    const boot = window.MYC && window.MYC.order && window.MYC.order.length
+      ? Promise.resolve()
+      : load('design/icons/src/myc-vec.js').then(() => load('design/icons/src/myc-vec-set.js'));
+    boot.then(() => this.setState({ ready: true }))
+        .catch((e) => this.setState({ err: e.message }));
+  }
+
+  renderVals() {
+    const big = this.props.bigSize ?? 96;
+    const out = {
+      big: big + 'px',
+      showGrid: this.props.showGrid ?? false,
+      showConstruction: this.props.showConstruction ?? true,
+      err: this.state.err,
+      count: 11,
+      guardLine: 'checking',
+      sprite: null,
+      rows: [],
+      pairs: [],
+      families: [
+        { key: 'built',  name: 'pine',  accent: '#29473A', applies: 'Building typologies and the assembly mark. Accent equals ink, so these read as ink-and-white line drawings.' },
+        { key: 'plant',  name: 'sage',  accent: '#7E9469', applies: 'Trees, parks, vegetation — anything that grows.' },
+        { key: 'ground', name: 'soil',  accent: '#6B4F35', applies: 'Terrain, parcels, site. Massing moved here: it operates on parcels.' },
+        { key: 'tool',   name: 'slate', accent: '#5A6660', applies: 'Templates, utilities, diagnostics. A derived neutral so tooling recedes.' }
+      ],
+      rules: [
+        { k: 'space',      v: '24 × 24 units, all art inside 0.7–23.3. The guard in V.glyph fails the build on any path outside the box — no exceptions list.' },
+        { k: 'stroke',     v: '1.25 for every contour, 0.85 for interior hairlines only: floor plates, parcel divisions, contour lines, branch veins. Round caps and joins.' },
+        { k: 'fill',       v: 'White for built volume, two derived greys for the shaded faces. The family accent fills what grows, flows, or is ground.' },
+        { k: 'tinting',    v: 'A filled detail narrower than 3.5 units is stroked in its own colour — a 1.25 contour on both sides would eat it.' },
+        { k: 'projection', v: '30° isometric, viewer above-left, extrusion up. Decided once and held. Plan views are reserved for footprint operations; the five typology configs are masses now, not outlines.' },
+        { k: 'composition',v: 'One motif from M plus at most one badge from B, centred at (17, 17), r 4.4, on cream so it punches out. Two badges means the motif is wrong.' },
+        { k: 'effects',    v: 'None. No gradient, no shadow, no blur, no card behind the glyph.' },
+        { k: 'raster',     v: 'PNG is the 24 × 24 SVG drawn into a 24 × 24 canvas — never drawn large and downscaled, or the 1.25 stroke turns to mush.' }
+      ]
+    };
+    if (!this.state.ready || !window.MYC) return out;
+
+    const V = window.MYC;
+    let glyphs;
+    try { glyphs = V.all(); } catch (e) { out.err = e.message; return out; }
+    V.report.length = 0;
+
+    out.count = glyphs.length;
+    out.guardLine = glyphs.filter((g) => g.ok).length + '/' + glyphs.length + ' pass';
+    out.sprite = React.createElement('div', {
+      style: { position: 'absolute', width: 0, height: 0, overflow: 'hidden' },
+      dangerouslySetInnerHTML: {
+        __html: '<svg xmlns="http://www.w3.org/2000/svg">' + glyphs.map((g) => g.symbol).join('') + '</svg>'
+      }
+    });
+    out.rows = glyphs.map((g) => ({
+      name: g.name,
+      component: g.component,
+      panel: g.panel === '—' ? 'assembly mark' : g.panel,
+      family: g.family,
+      accent: g.accent,
+      motif: g.motif,
+      badge: g.badge || 'none',
+      href: '#myc-' + g.name,
+      ok: g.ok
+    }));
+
+    const pair = (a, b, label, why) => ({ aHref: '#myc-' + a, bHref: '#myc-' + b, label, why });
+    out.pairs = [
+      pair('MyceliumPoint', 'MyceliumCourtyard', 'Point / Courtyard',
+        'Both were concentric squares. Now one is a solid block with no interior at all, the other a low ring whose void is the subject.'),
+      pair('Mycelium', 'MyceliumMassing', 'Mycelium / Massing',
+        'The assembly mark keeps the roots and drops the parcel field; Massing keeps the soil parcels, gains a grid badge, and never grows roots.'),
+      pair('MyceliumL', 'MyceliumU', 'L / U',
+        'The L turns its solid corner to the viewer; the U turns its open mouth. Silhouettes diverge at the near edge, not the far one.')
+    ];
+    return out;
+  }
+}
+
+</script>
+</body>
+</html>
