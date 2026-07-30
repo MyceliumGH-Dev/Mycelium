@@ -8,6 +8,11 @@ on:
 
 jobs:
   publish:
+    # contents: write is for the tag and GitHub Release the reusable workflow cuts after
+    # Yak accepts the push. A reusable workflow can only narrow the caller's permissions,
+    # never widen them, so the grant has to live here.
+    permissions:
+      contents: write
     uses: ./.github/workflows/_package.yml
     with:
       channel: release

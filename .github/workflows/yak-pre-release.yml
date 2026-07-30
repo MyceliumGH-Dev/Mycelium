@@ -8,6 +8,9 @@ on:
 
 jobs:
   publish:
+    # Same grant as Yak Release; betas are tagged too, marked as GitHub pre-releases.
+    permissions:
+      contents: write
     uses: ./.github/workflows/_package.yml
     with:
       channel: pre-release

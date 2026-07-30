@@ -1,0 +1,29 @@
+version: 2
+
+# The workflows pin every action to a full commit SHA, so a compromised or re-pointed
+# release tag cannot silently change what CI runs. The cost of pinning is that nothing
+# updates on its own — Dependabot is what buys that back: it opens a PR when an action
+# publishes a new release, rewriting the SHA and the trailing "# vX.Y.Z" comment together.
+#
+# NuGet is deliberately NOT enabled. The Grasshopper package version is pinned to the
+# Rhino 8 ABI the plugin targets; an automated bump there would change the runtime
+# contract, not just a build tool.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      # One PR for routine patch/minor bumps; majors stay separate so a breaking
+      # runner change is reviewed on its own.
+      actions-minor:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

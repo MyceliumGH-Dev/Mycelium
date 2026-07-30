@@ -26,15 +26,18 @@ on:
 jobs:
   package:
     runs-on: windows-2022
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      source_version: ${{ steps.version.outputs.source_version }}
     env:
       YAK_TOKEN: ${{ secrets.YAK_TOKEN }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 8.0.x
 
@@ -58,6 +61,56 @@ jobs:
           "assembly_version=$assemblyVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "source_version=$fullVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Channel '${{ inputs.channel }}' -> package version $version (assembly $assemblyVersion, templates branch $fullVersion)"
+
+      - name: Guard against re-releasing a version
+        shell: pwsh
+        run: |
+          # Every published version gets an immutable tag (see the release job). That makes
+          # "has this version already gone out?" answerable, which the Yak version number
+          # alone cannot answer once a release is cut. Two ways a version is spent:
+          #   1. A tag exists on a DIFFERENT commit -> released from different content.
+          #   2. Both distributions are already on Yak -> nothing left to push.
+          # A tag on THIS commit is a re-run, and a partially-published version is the
+          # deliberate mac-backfill case; both must stay allowed.
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = "v$version"
+          $publish = '${{ inputs.publish }}' -eq 'true'
+          $sha = '${{ github.sha }}'
+
+          $refs = git ls-remote --tags origin 2>$null
+          $escaped = [Regex]::Escape($tag)
+          $peeled = @($refs | Where-Object { $_ -match "refs/tags/$escaped\^\{\}$" })
+          $plain  = @($refs | Where-Object { $_ -match "refs/tags/$escaped$" })
+          $tagSha = if ($peeled.Count) { ($peeled[0] -split "`t")[0] }
+                    elseif ($plain.Count) { ($plain[0] -split "`t")[0] }
+                    else { $null }
+
+          $published = @()
+          try {
+            $vers = Invoke-RestMethod 'https://yak.rhino3d.com/versions/Mycelium' -ErrorAction Stop
+            $match = $vers | Where-Object { $_.version -eq $version }
+            if ($match) { $published = @($match.distributions | ForEach-Object { $_.filename }) }
+          } catch { Write-Host "Could not query Yak for existing distributions: $_" }
+          $hasWin = [bool]($published | Where-Object { $_ -match '-win\.yak$' })
+          $hasMac = [bool]($published | Where-Object { $_ -match '-mac\.yak$' })
+
+          $reason = $null
+          if ($tagSha -eq $sha) {
+            Write-Host "$tag already points at this commit - re-run, allowed."
+          } elseif ($tagSha) {
+            $reason = "$tag already exists on commit $tagSha. Version $version was released from different content; bump 'version:' in manifest.yml."
+          } elseif ($hasWin -and $hasMac) {
+            $reason = "Yak already has both win and mac distributions for $version. Bump 'version:' in manifest.yml."
+          } else {
+            Write-Host "Version $version is releasable (tag: none, yak win: $hasWin, mac: $hasMac)."
+          }
+
+          if ($reason) {
+            if ($publish) { throw $reason }
+            # On the dev dry-run this is information, not a failure: it only means the
+            # branch is not yet bumped for its NEXT release.
+            Write-Host "::warning title=Version already released::$reason"
+          }
 
       - name: Build plugin
         shell: pwsh
@@ -147,7 +200,7 @@ jobs:
           }
 
       - name: Upload package artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mycelium-yak-${{ steps.version.outputs.version }}
           path: ${{ github.workspace }}/yak-dist/*.yak
@@ -175,3 +228,62 @@ jobs:
             Start-Sleep -Seconds 10
           }
           throw "Yak verification failed: $packageName $expectedVersion not found."
+
+  release:
+    # Yak stays the distribution channel — this job does not change how anyone installs
+    # Mycelium. It exists so every published version has an immutable git ref pointing at
+    # the exact commit it was built from, which a Yak version number does not give you,
+    # and which the re-release guard above reads back. Runs only after Yak accepted the
+    # push, so a tag can never claim a release that did not actually publish.
+    needs: package
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mycelium-yak-${{ needs.package.outputs.version }}
+          path: yak-dist
+
+      - name: Tag and publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.package.outputs.version }}
+          SOURCE_VERSION: ${{ needs.package.outputs.source_version }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+
+          # The changelog is keyed by the 4-part manifest version in both channels, so a
+          # beta reads the notes of the release it is a candidate for. index()==1 anchors
+          # on the literal heading — no regex escaping of the [brackets].
+          # sed drops the blank line that follows every changelog heading.
+          notes=$(awk -v hdr="## [${SOURCE_VERSION}]" \
+            'index($0,hdr)==1 {f=1; next} f && /^## \[/ {exit} f' CHANGELOG.md | sed '/./,$!d')
+          if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+            notes="No CHANGELOG entry for ${SOURCE_VERSION}."
+          fi
+          notes="${notes}"$'\n\n'"Install with Rhino's Package Manager, or \`yak install Mycelium ${VERSION}\`."
+
+          prerelease=false
+          if [ "$CHANNEL" = "pre-release" ]; then prerelease=true; fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists - refreshing its assets."
+            gh release upload "$tag" yak-dist/*.yak --clobber
+            exit 0
+          fi
+
+          gh release create "$tag" yak-dist/*.yak \
+            --target "$GITHUB_SHA" \
+            --title "Mycelium ${VERSION}" \
+            --notes "$notes" \
+            --prerelease="$prerelease"
+          echo "Released $tag at $GITHUB_SHA"
