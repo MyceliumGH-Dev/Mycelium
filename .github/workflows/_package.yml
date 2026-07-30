@@ -72,44 +72,60 @@ jobs:
           #   2. Both distributions are already on Yak -> nothing left to push.
           # A tag on THIS commit is a re-run, and a partially-published version is the
           # deliberate mac-backfill case; both must stay allowed.
-          $version = '${{ steps.version.outputs.version }}'
-          $tag = "v$version"
           $publish = '${{ inputs.publish }}' -eq 'true'
           $sha = '${{ github.sha }}'
+          $source = '${{ steps.version.outputs.source_version }}'
+          $p = $source -split '\.'
 
-          $refs = git ls-remote --tags origin 2>$null
-          $escaped = [Regex]::Escape($tag)
-          $peeled = @($refs | Where-Object { $_ -match "refs/tags/$escaped\^\{\}$" })
-          $plain  = @($refs | Where-Object { $_ -match "refs/tags/$escaped$" })
-          $tagSha = if ($peeled.Count) { ($peeled[0] -split "`t")[0] }
-                    elseif ($plain.Count) { ($plain[0] -split "`t")[0] }
-                    else { $null }
-
-          $published = @()
+          $refs = @(git ls-remote --tags origin 2>$null)
+          $yak = @()
           try {
-            $vers = Invoke-RestMethod 'https://yak.rhino3d.com/versions/Mycelium' -ErrorAction Stop
-            $match = $vers | Where-Object { $_.version -eq $version }
-            if ($match) { $published = @($match.distributions | ForEach-Object { $_.filename }) }
+            $yak = @(Invoke-RestMethod 'https://yak.rhino3d.com/versions/Mycelium' -ErrorAction Stop)
           } catch { Write-Host "Could not query Yak for existing distributions: $_" }
-          $hasWin = [bool]($published | Where-Object { $_ -match '-win\.yak$' })
-          $hasMac = [bool]($published | Where-Object { $_ -match '-mac\.yak$' })
 
-          $reason = $null
-          if ($tagSha -eq $sha) {
-            Write-Host "$tag already points at this commit - re-run, allowed."
-          } elseif ($tagSha) {
-            $reason = "$tag already exists on commit $tagSha. Version $version was released from different content; bump 'version:' in manifest.yml."
-          } elseif ($hasWin -and $hasMac) {
-            $reason = "Yak already has both win and mac distributions for $version. Bump 'version:' in manifest.yml."
-          } else {
+          function Get-Blocker($version) {
+            $tag = "v$version"
+            $e = [Regex]::Escape($tag)
+            $peeled = @($refs | Where-Object { $_ -match "refs/tags/$e\^\{\}$" })
+            $plain  = @($refs | Where-Object { $_ -match "refs/tags/$e$" })
+            $tagSha = if ($peeled.Count) { ($peeled[0] -split "`t")[0] }
+                      elseif ($plain.Count) { ($plain[0] -split "`t")[0] }
+                      else { $null }
+
+            $dists = @()
+            $m = $yak | Where-Object { $_.version -eq $version }
+            if ($m) { $dists = @($m.distributions | ForEach-Object { $_.filename }) }
+            $hasWin = [bool]($dists | Where-Object { $_ -match '-win\.yak$' })
+            $hasMac = [bool]($dists | Where-Object { $_ -match '-mac\.yak$' })
+
+            if ($tagSha -eq $sha) {
+              Write-Host "$tag already points at this commit - re-run, allowed."
+              return $null
+            }
+            if ($tagSha) {
+              return "$tag already exists on commit $tagSha. Version $version was released from different content; bump 'version:' in manifest.yml."
+            }
+            if ($hasWin -and $hasMac) {
+              return "Yak already has both win and mac distributions for $version. Bump 'version:' in manifest.yml."
+            }
             Write-Host "Version $version is releasable (tag: none, yak win: $hasWin, mac: $hasMac)."
+            return $null
           }
 
-          if ($reason) {
-            if ($publish) { throw $reason }
-            # On the dev dry-run this is information, not a failure: it only means the
-            # branch is not yet bumped for its NEXT release.
-            Write-Host "::warning title=Version already released::$reason"
+          if ($publish) {
+            # Only the channel actually being pushed can block the push.
+            $reason = Get-Blocker '${{ steps.version.outputs.version }}'
+            if ($reason) { throw $reason }
+          } else {
+            # The dry-run publishes nothing, so it checks BOTH channel spellings of the
+            # manifest version. Checking only the called channel would mean a dev push
+            # never warns about the release version - the one actually forgotten.
+            foreach ($v in @($source, "$($p[0]).$($p[1]).$($p[2])-beta.$($p[3])")) {
+              $reason = Get-Blocker $v
+              # A warning, not a failure: an unbumped dev branch is the normal state
+              # between releases, and this only describes its NEXT release.
+              if ($reason) { Write-Host "::warning title=Version already released::$reason" }
+            }
           }
 
       - name: Build plugin
