@@ -235,11 +235,15 @@ jobs:
     # the exact commit it was built from, which a Yak version number does not give you,
     # and which the re-release guard above reads back. Runs only after Yak accepted the
     # push, so a tag can never claim a release that did not actually publish.
+    #
+    # No `permissions:` block here on purpose. A called workflow's job may not request more
+    # than the caller granted, and that is validated for EVERY job at startup — including
+    # ones `if:` will skip. Declaring contents: write here fails Package Check outright,
+    # since it runs on PRs (forks included) with a read-only token. The publishing callers
+    # grant the write; this job inherits it.
     needs: package
     if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
