@@ -6,14 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0.3] - 2026-08-01
+
 ### Added
-- Massing Generator street-network modes: irregular `Rectilinear` (the backwards-compatible default), regular `Checkerboard`, diagonal/orthogonal `Hybrid`, and concentric `Radial`.
+- Radial-Concentric Grid subtypes in the Massing Generator: full circular `Civic Core`, straight-sided `Polygonal Radial`, and a one-sided `Fan Plan` with a less-permeable rear sector.
+- Diagonal Grid subtypes in the Massing Generator: `Single Axis`, intersecting `Cross Axes`, and an `Orthogonal Overlay` that cuts a wider diagonal boulevard through a regular grid.
+- Irregular Grid subtypes in the Massing Generator: the backwards-compatible `Recursive Orthogonal`, seeded `Deformed Grid`, and offset-row `Staggered Grid` with T-junctions.
+- Orthogonal Grid subtypes in the Massing Generator's nested right-click menu: `Regular Grid`, elongated `Rectangular Grid`, chamfered `Cerdà Grid`, and `Hierarchical Superblock` with wider primary streets around 3×3 groups of local blocks.
+- Massing Generator right-click street-network selector with `Irregular Grid` (the backwards-compatible default), `Orthogonal Grid`, `Diagonal Grid`, and `Radial–Concentric Grid` modes. The selection is saved with the Grasshopper definition.
 - Every published version now gets a git tag and a GitHub Release, cut by CI *after* Yak accepts the push, with the changelog section as its notes and both `.yak` distributions attached. Yak is still the only install channel; the tag exists so a version has an immutable ref pointing at the commit it was built from. Pre-releases are tagged too, marked as GitHub pre-releases.
 - Re-release guard in the packaging workflow. A publish fails if the version's tag already exists on a different commit, or if Yak already holds both distributions — the "forgot to bump `manifest.yml`" case. On the `dev` dry-run it is a warning, not a failure, and a tag on the *same* commit (a re-run) and a partially-published version (the deliberate mac backfill) both stay allowed.
 - `.github/dependabot.yml`, weekly on the github-actions ecosystem. NuGet is deliberately not enabled: the Grasshopper package pins the Rhino 8 ABI, so a bump there is a runtime change, not a build-tool one.
 
 ### Changed
+- Radial–Concentric Grid now terminates its spokes at a finite central civic/focal block and surrounding ring street. Spoke density is limited by available inner-ring frontage, avoiding unrealistic needle-shaped parcels at the center.
 - GitHub Actions are pinned to full commit SHAs instead of the floating `@v4` tags, so a re-pointed release tag cannot silently change what CI runs. The trailing `# vX.Y.Z` comment records the human-readable version.
+
+### Fixed
+- Updating Mycelium Templates now clears downloaded template files before synchronizing, so changed `.gh`/`.ghx` content is fetched automatically. The redundant **Force Refresh Template List** command has been removed.
 
 ## [0.1.0.2] - 2026-07-30
 

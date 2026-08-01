@@ -415,6 +415,18 @@ namespace Mycelium.Components
             }
         }
 
+        private void RefreshTemplates()
+        {
+            if (_isFetching) return;
+
+            _errorMessage = null;
+            ClearMainTemplateCache();
+            if (_errorMessage == null)
+                FetchGithubFilesAsync();
+            else
+                ExpireSolution(true);
+        }
+
         // --- Canvas insertion ---
 
         /// <summary>
@@ -501,11 +513,11 @@ namespace Mycelium.Components
             {
                 if (_updateAvailable)
                 {
-                    var updateItem = new ToolStripMenuItem("Update Available! Click to Sync", null, (s, e) => FetchGithubFilesAsync())
+                    var updateItem = new ToolStripMenuItem("Update Available! Click to Sync", null, (s, e) => RefreshTemplates())
                     {
                         BackColor = Color.Gold,
                         ForeColor = Color.Black,
-                        ToolTipText = "A newer version of the templates is available. Click to synchronize."
+                        ToolTipText = "Clear the cached templates and synchronize the latest versions from GitHub."
                     };
                     menu.Items.Add(updateItem);
                     menu.Items.Add(new ToolStripSeparator());
@@ -536,15 +548,6 @@ namespace Mycelium.Components
                     menu.Items.Add(item);
                 }
             }
-
-            menu.Items.Add(new ToolStripSeparator());
-            var forceRefreshItem = Menu_AppendItem(menu, "🔄 Force Refresh Template List", (s, e) =>
-            {
-                ClearMainTemplateCache();
-                if (_errorMessage == null) FetchGithubFilesAsync();
-                else ExpireSolution(true);
-            });
-            if (forceRefreshItem != null) forceRefreshItem.ToolTipText = "Clear the local template cache and fetch the latest list from GitHub.";
 
             menu.Items.Add(new ToolStripSeparator());
 

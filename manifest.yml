@@ -4,7 +4,7 @@
 #   pre-release channel -> X.Y.Z-beta.W
 # CI stamps the resolved channel version into the staged copy before `yak build`.
 name: Mycelium
-version: 0.1.0.2
+version: 0.1.0.3
 authors:
   - Ilker Karadag, Patrick Kastner
 description: >

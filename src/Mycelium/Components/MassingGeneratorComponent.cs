@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
+using System.Windows.Forms;
 using Grasshopper.Kernel;
+using GH_IO.Serialization;
 using Rhino.Geometry;
 using Mycelium.Core;
 
@@ -14,11 +16,23 @@ namespace Mycelium.Components
     /// </summary>
     public class MassingGeneratorComponent : GH_Component
     {
+        private const string NetworkTypeKey = "StreetNetworkType";
+        private const string OrthogonalGridTypeKey = "OrthogonalGridType";
+        private const string IrregularGridTypeKey = "IrregularGridType";
+        private const string DiagonalGridTypeKey = "DiagonalGridType";
+        private const string RadialGridTypeKey = "RadialGridType";
+        private StreetNetworkType _networkType = StreetNetworkType.IrregularGrid;
+        private OrthogonalGridType _orthogonalGridType = OrthogonalGridType.Regular;
+        private IrregularGridType _irregularGridType = IrregularGridType.RecursiveOrthogonal;
+        private DiagonalGridType _diagonalGridType = DiagonalGridType.SingleAxis;
+        private RadialConcentricGridType _radialGridType = RadialConcentricGridType.CivicCore;
+
         public MassingGeneratorComponent()
           : base("Massing Generator", "Massing",
               "Generate building masses with multiple typologies from a parcel boundary",
               "Mycelium", "Massing")
         {
+            Message = CurrentNetworkLabel();
         }
 
         // GUID predates the Mycelium rename; existing Grasshopper files depend on it.
@@ -37,7 +51,6 @@ namespace Mycelium.Components
             pManager.AddBooleanParameter("GenerateFloorSlabs", "Slabs", "Generate individual floor slabs", GH_ParamAccess.item, false);
             pManager.AddTextParameter("Trees", "Trees", "Tree configuration from Tree Config component (optional)", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Seed", "Seed", "Random seed", GH_ParamAccess.item, 0);
-            pManager.AddTextParameter("NetworkType", "Network", "Street network: Rectilinear, Checkerboard, Hybrid, or Radial", GH_ParamAccess.item, "Rectilinear");
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
@@ -68,7 +81,6 @@ namespace Mycelium.Components
             bool generateFloorSlabs = false;
             string treeConfigRaw = null;
             int seed = 0;
-            string networkTypeRaw = "Rectilinear";
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref floorHeight);
@@ -79,14 +91,6 @@ namespace Mycelium.Components
             DA.GetData(6, ref generateFloorSlabs);
             bool hasTreeConfig = DA.GetData(7, ref treeConfigRaw);
             DA.GetData(8, ref seed);
-            DA.GetData(9, ref networkTypeRaw);
-
-            if (!TryParseNetworkType(networkTypeRaw, out StreetNetworkType networkType))
-            {
-                networkType = StreetNetworkType.Rectilinear;
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
-                    $"Unknown network type '{networkTypeRaw}'. Using Rectilinear. Valid types: Rectilinear, Checkerboard, Hybrid, Radial.");
-            }
 
             // Tree configuration (optional input, defaults otherwise)
             var treeConfig = TreeConfig.Default;
@@ -130,7 +134,8 @@ namespace Mycelium.Components
 
             // 1. Subdivide the boundary into parcels separated by streets
             var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, globalMinArea,
-                streetWidth, rng, networkType);
+                streetWidth, rng, _networkType, _orthogonalGridType, _irregularGridType,
+                _diagonalGridType, _radialGridType);
 
             // 2. Streets are the leftover space between boundary and parcels
             var streetsDiff = Curve.CreateBooleanDifference(boundary, allParcels.ToArray(), 0.001);
@@ -176,18 +181,248 @@ namespace Mycelium.Components
             DA.SetData(9, metrics);
         }
 
-        private static bool TryParseNetworkType(string value, out StreetNetworkType networkType)
+        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
         {
-            string normalized = value?.Trim() ?? string.Empty;
-            if (normalized.Equals("Rectangular", StringComparison.OrdinalIgnoreCase) ||
-                normalized.Equals("Grid", StringComparison.OrdinalIgnoreCase))
+            base.AppendAdditionalComponentMenuItems(menu);
+            Menu_AppendSeparator(menu);
+
+            var networkMenu = Menu_AppendItem(menu, "Street Network");
+            var irregularMenu = Menu_AppendItem(networkMenu.DropDown, "Irregular Grid");
+            irregularMenu.Checked = _networkType == StreetNetworkType.IrregularGrid;
+            foreach (IrregularGridType type in Enum.GetValues(typeof(IrregularGridType)))
             {
-                networkType = StreetNetworkType.Rectilinear;
-                return true;
+                var selectedType = type;
+                Menu_AppendItem(irregularMenu.DropDown, IrregularGridTypeLabel(type),
+                    (sender, args) => SetIrregularGridType(selectedType), true,
+                    _networkType == StreetNetworkType.IrregularGrid && _irregularGridType == type);
             }
 
-            return Enum.TryParse(normalized, true, out networkType) &&
-                Enum.IsDefined(typeof(StreetNetworkType), networkType);
+            var orthogonalMenu = Menu_AppendItem(networkMenu.DropDown, "Orthogonal Grid");
+            orthogonalMenu.Checked = _networkType == StreetNetworkType.OrthogonalGrid;
+            foreach (OrthogonalGridType type in Enum.GetValues(typeof(OrthogonalGridType)))
+            {
+                var selectedType = type;
+                Menu_AppendItem(orthogonalMenu.DropDown, OrthogonalGridTypeLabel(type),
+                    (sender, args) => SetOrthogonalGridType(selectedType), true,
+                    _networkType == StreetNetworkType.OrthogonalGrid && _orthogonalGridType == type);
+            }
+
+            var diagonalMenu = Menu_AppendItem(networkMenu.DropDown, "Diagonal Grid");
+            diagonalMenu.Checked = _networkType == StreetNetworkType.DiagonalGrid;
+            foreach (DiagonalGridType type in Enum.GetValues(typeof(DiagonalGridType)))
+            {
+                var selectedType = type;
+                Menu_AppendItem(diagonalMenu.DropDown, DiagonalGridTypeLabel(type),
+                    (sender, args) => SetDiagonalGridType(selectedType), true,
+                    _networkType == StreetNetworkType.DiagonalGrid && _diagonalGridType == type);
+            }
+            var radialMenu = Menu_AppendItem(networkMenu.DropDown, "Radial-Concentric Grid");
+            radialMenu.Checked = _networkType == StreetNetworkType.RadialConcentricGrid;
+            foreach (RadialConcentricGridType type in Enum.GetValues(typeof(RadialConcentricGridType)))
+            {
+                var selectedType = type;
+                Menu_AppendItem(radialMenu.DropDown, RadialGridTypeLabel(type),
+                    (sender, args) => SetRadialGridType(selectedType), true,
+                    _networkType == StreetNetworkType.RadialConcentricGrid && _radialGridType == type);
+            }
+        }
+
+        private void SetNetworkType(StreetNetworkType networkType)
+        {
+            if (_networkType == networkType)
+                return;
+
+            RecordUndoEvent("Street Network");
+            _networkType = networkType;
+            Message = CurrentNetworkLabel();
+            ExpireSolution(true);
+        }
+
+        private void SetOrthogonalGridType(OrthogonalGridType gridType)
+        {
+            if (_networkType == StreetNetworkType.OrthogonalGrid && _orthogonalGridType == gridType)
+                return;
+
+            RecordUndoEvent("Orthogonal Grid Type");
+            _networkType = StreetNetworkType.OrthogonalGrid;
+            _orthogonalGridType = gridType;
+            Message = CurrentNetworkLabel();
+            ExpireSolution(true);
+        }
+
+        private void SetIrregularGridType(IrregularGridType gridType)
+        {
+            if (_networkType == StreetNetworkType.IrregularGrid && _irregularGridType == gridType)
+                return;
+
+            RecordUndoEvent("Irregular Grid Type");
+            _networkType = StreetNetworkType.IrregularGrid;
+            _irregularGridType = gridType;
+            Message = CurrentNetworkLabel();
+            ExpireSolution(true);
+        }
+
+        private void SetDiagonalGridType(DiagonalGridType gridType)
+        {
+            if (_networkType == StreetNetworkType.DiagonalGrid && _diagonalGridType == gridType)
+                return;
+
+            RecordUndoEvent("Diagonal Grid Type");
+            _networkType = StreetNetworkType.DiagonalGrid;
+            _diagonalGridType = gridType;
+            Message = CurrentNetworkLabel();
+            ExpireSolution(true);
+        }
+
+        private void SetRadialGridType(RadialConcentricGridType gridType)
+        {
+            if (_networkType == StreetNetworkType.RadialConcentricGrid && _radialGridType == gridType)
+                return;
+
+            RecordUndoEvent("Radial-Concentric Grid Type");
+            _networkType = StreetNetworkType.RadialConcentricGrid;
+            _radialGridType = gridType;
+            Message = CurrentNetworkLabel();
+            ExpireSolution(true);
+        }
+
+        public override bool Write(GH_IWriter writer)
+        {
+            writer.SetInt32(NetworkTypeKey, (int)_networkType);
+            writer.SetInt32(OrthogonalGridTypeKey, (int)_orthogonalGridType);
+            writer.SetInt32(IrregularGridTypeKey, (int)_irregularGridType);
+            writer.SetInt32(DiagonalGridTypeKey, (int)_diagonalGridType);
+            writer.SetInt32(RadialGridTypeKey, (int)_radialGridType);
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            int storedType = (int)StreetNetworkType.IrregularGrid;
+            if (reader.ItemExists(NetworkTypeKey))
+                storedType = reader.GetInt32(NetworkTypeKey);
+
+            _networkType = Enum.IsDefined(typeof(StreetNetworkType), storedType)
+                ? (StreetNetworkType)storedType
+                : StreetNetworkType.IrregularGrid;
+
+            int storedOrthogonalType = (int)OrthogonalGridType.Regular;
+            if (reader.ItemExists(OrthogonalGridTypeKey))
+                storedOrthogonalType = reader.GetInt32(OrthogonalGridTypeKey);
+            _orthogonalGridType = Enum.IsDefined(typeof(OrthogonalGridType), storedOrthogonalType)
+                ? (OrthogonalGridType)storedOrthogonalType
+                : OrthogonalGridType.Regular;
+
+            int storedIrregularType = (int)IrregularGridType.RecursiveOrthogonal;
+            if (reader.ItemExists(IrregularGridTypeKey))
+                storedIrregularType = reader.GetInt32(IrregularGridTypeKey);
+            _irregularGridType = Enum.IsDefined(typeof(IrregularGridType), storedIrregularType)
+                ? (IrregularGridType)storedIrregularType
+                : IrregularGridType.RecursiveOrthogonal;
+
+            int storedDiagonalType = (int)DiagonalGridType.SingleAxis;
+            if (reader.ItemExists(DiagonalGridTypeKey))
+                storedDiagonalType = reader.GetInt32(DiagonalGridTypeKey);
+            _diagonalGridType = Enum.IsDefined(typeof(DiagonalGridType), storedDiagonalType)
+                ? (DiagonalGridType)storedDiagonalType
+                : DiagonalGridType.SingleAxis;
+
+            int storedRadialType = (int)RadialConcentricGridType.CivicCore;
+            if (reader.ItemExists(RadialGridTypeKey))
+                storedRadialType = reader.GetInt32(RadialGridTypeKey);
+            _radialGridType = Enum.IsDefined(typeof(RadialConcentricGridType), storedRadialType)
+                ? (RadialConcentricGridType)storedRadialType
+                : RadialConcentricGridType.CivicCore;
+
+            Message = CurrentNetworkLabel();
+            return base.Read(reader);
+        }
+
+        private string CurrentNetworkLabel()
+        {
+            if (_networkType == StreetNetworkType.OrthogonalGrid)
+                return OrthogonalGridTypeLabel(_orthogonalGridType);
+            if (_networkType == StreetNetworkType.IrregularGrid)
+                return IrregularGridTypeLabel(_irregularGridType);
+            if (_networkType == StreetNetworkType.DiagonalGrid)
+                return DiagonalGridTypeLabel(_diagonalGridType);
+            if (_networkType == StreetNetworkType.RadialConcentricGrid)
+                return RadialGridTypeLabel(_radialGridType);
+            return NetworkTypeLabel(_networkType);
+        }
+
+        private static string RadialGridTypeLabel(RadialConcentricGridType gridType)
+        {
+            switch (gridType)
+            {
+                case RadialConcentricGridType.PolygonalRadial:
+                    return "Polygonal Radial";
+                case RadialConcentricGridType.FanPlan:
+                    return "Fan Plan";
+                case RadialConcentricGridType.CivicCore:
+                default:
+                    return "Civic Core";
+            }
+        }
+
+        private static string DiagonalGridTypeLabel(DiagonalGridType gridType)
+        {
+            switch (gridType)
+            {
+                case DiagonalGridType.CrossAxes:
+                    return "Cross Axes";
+                case DiagonalGridType.OrthogonalOverlay:
+                    return "Orthogonal Overlay";
+                case DiagonalGridType.SingleAxis:
+                default:
+                    return "Single Axis";
+            }
+        }
+
+        private static string IrregularGridTypeLabel(IrregularGridType gridType)
+        {
+            switch (gridType)
+            {
+                case IrregularGridType.DeformedGrid:
+                    return "Deformed Grid";
+                case IrregularGridType.StaggeredGrid:
+                    return "Staggered Grid";
+                case IrregularGridType.RecursiveOrthogonal:
+                default:
+                    return "Recursive Orthogonal";
+            }
+        }
+
+        private static string OrthogonalGridTypeLabel(OrthogonalGridType gridType)
+        {
+            switch (gridType)
+            {
+                case OrthogonalGridType.Rectangular:
+                    return "Rectangular Grid";
+                case OrthogonalGridType.Cerda:
+                    return "Cerdà Grid";
+                case OrthogonalGridType.HierarchicalSuperblock:
+                    return "Hierarchical Superblock";
+                case OrthogonalGridType.Regular:
+                default:
+                    return "Regular Grid";
+            }
+        }
+
+        private static string NetworkTypeLabel(StreetNetworkType networkType)
+        {
+            switch (networkType)
+            {
+                case StreetNetworkType.OrthogonalGrid:
+                    return "Orthogonal Grid";
+                case StreetNetworkType.DiagonalGrid:
+                    return "Diagonal Grid";
+                case StreetNetworkType.RadialConcentricGrid:
+                    return "Radial–Concentric Grid";
+                case StreetNetworkType.IrregularGrid:
+                default:
+                    return "Irregular Grid";
+            }
         }
 
         /// <summary>

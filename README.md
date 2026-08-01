@@ -64,9 +64,9 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 <details>
 <summary><b>Massing Generator inputs &amp; outputs</b></summary>
 
-**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed, NetworkType (`Rectilinear`, `Checkerboard`, `Hybrid`, or `Radial`).
+**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed.
 
-`Rectilinear` retains the original seeded, irregular orthogonal subdivision. `Checkerboard` creates evenly spaced rows and columns, `Hybrid` introduces a diagonal avenue before orthogonal subdivision, and `Radial` creates spokes and concentric rings. The legacy names `Rectangular` and `Grid` are accepted as aliases for `Rectilinear`.
+Right-click the Massing Generator and use **Street Network** to select `Irregular Grid`, `Orthogonal Grid`, `Diagonal Grid`, or `Radial–Concentric Grid`. The choice is stored in the Grasshopper definition and displayed beneath the component. `Irregular Grid` includes the original seeded `Recursive Orthogonal`, a seeded `Deformed Grid` with displaced shared intersections, and a `Staggered Grid` with offset rows and T-junctions. `Orthogonal Grid` includes nested `Regular Grid`, `Rectangular Grid`, `Cerdà Grid`, and `Hierarchical Superblock` options. Cerdà blocks have chamfered corners; the superblock option groups a fine 3×3 local grid within a wider primary-street grid. `Diagonal Grid` includes `Single Axis`, intersecting `Cross Axes`, and an `Orthogonal Overlay` that cuts a wider diagonal boulevard through a regular grid. `Radial–Concentric Grid` includes a full circular `Civic Core`, straight-sided `Polygonal Radial` rings, and a one-sided `Fan Plan`; all three terminate at a finite focal block instead of a point.
 
 **Outputs**: Footprints, Masses, Heights, Streets, FloorSlabs, Parks, Courtyards, Trees, Parcels, Metrics.
 
