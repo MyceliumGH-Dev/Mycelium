@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Massing Generator street-network modes: irregular `Rectilinear` (the backwards-compatible default), regular `Checkerboard`, diagonal/orthogonal `Hybrid`, and concentric `Radial`.
 - Every published version now gets a git tag and a GitHub Release, cut by CI *after* Yak accepts the push, with the changelog section as its notes and both `.yak` distributions attached. Yak is still the only install channel; the tag exists so a version has an immutable ref pointing at the commit it was built from. Pre-releases are tagged too, marked as GitHub pre-releases.
 - Re-release guard in the packaging workflow. A publish fails if the version's tag already exists on a different commit, or if Yak already holds both distributions — the "forgot to bump `manifest.yml`" case. On the `dev` dry-run it is a warning, not a failure, and a tag on the *same* commit (a re-run) and a partially-published version (the deliberate mac backfill) both stay allowed.
 - `.github/dependabot.yml`, weekly on the github-actions ecosystem. NuGet is deliberately not enabled: the Grasshopper package pins the Rhino 8 ABI, so a bump there is a runtime change, not a build-tool one.

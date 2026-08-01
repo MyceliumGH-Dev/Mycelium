@@ -64,7 +64,9 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 <details>
 <summary><b>Massing Generator inputs &amp; outputs</b></summary>
 
-**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed.
+**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed, NetworkType (`Rectilinear`, `Checkerboard`, `Hybrid`, or `Radial`).
+
+`Rectilinear` retains the original seeded, irregular orthogonal subdivision. `Checkerboard` creates evenly spaced rows and columns, `Hybrid` introduces a diagonal avenue before orthogonal subdivision, and `Radial` creates spokes and concentric rings. The legacy names `Rectangular` and `Grid` are accepted as aliases for `Rectilinear`.
 
 **Outputs**: Footprints, Masses, Heights, Streets, FloorSlabs, Parks, Courtyards, Trees, Parcels, Metrics.
 

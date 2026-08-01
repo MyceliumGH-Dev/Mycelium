@@ -37,6 +37,7 @@ namespace Mycelium.Components
             pManager.AddBooleanParameter("GenerateFloorSlabs", "Slabs", "Generate individual floor slabs", GH_ParamAccess.item, false);
             pManager.AddTextParameter("Trees", "Trees", "Tree configuration from Tree Config component (optional)", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Seed", "Seed", "Random seed", GH_ParamAccess.item, 0);
+            pManager.AddTextParameter("NetworkType", "Network", "Street network: Rectilinear, Checkerboard, Hybrid, or Radial", GH_ParamAccess.item, "Rectilinear");
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
@@ -67,6 +68,7 @@ namespace Mycelium.Components
             bool generateFloorSlabs = false;
             string treeConfigRaw = null;
             int seed = 0;
+            string networkTypeRaw = "Rectilinear";
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref floorHeight);
@@ -77,6 +79,14 @@ namespace Mycelium.Components
             DA.GetData(6, ref generateFloorSlabs);
             bool hasTreeConfig = DA.GetData(7, ref treeConfigRaw);
             DA.GetData(8, ref seed);
+            DA.GetData(9, ref networkTypeRaw);
+
+            if (!TryParseNetworkType(networkTypeRaw, out StreetNetworkType networkType))
+            {
+                networkType = StreetNetworkType.Rectilinear;
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    $"Unknown network type '{networkTypeRaw}'. Using Rectilinear. Valid types: Rectilinear, Checkerboard, Hybrid, Radial.");
+            }
 
             // Tree configuration (optional input, defaults otherwise)
             var treeConfig = TreeConfig.Default;
@@ -119,7 +129,8 @@ namespace Mycelium.Components
             var parcels = new List<Curve>();
 
             // 1. Subdivide the boundary into parcels separated by streets
-            var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, globalMinArea, streetWidth, rng);
+            var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, globalMinArea,
+                streetWidth, rng, networkType);
 
             // 2. Streets are the leftover space between boundary and parcels
             var streetsDiff = Curve.CreateBooleanDifference(boundary, allParcels.ToArray(), 0.001);
@@ -163,6 +174,20 @@ namespace Mycelium.Components
             DA.SetDataList(7, trees);
             DA.SetDataList(8, parcels);
             DA.SetData(9, metrics);
+        }
+
+        private static bool TryParseNetworkType(string value, out StreetNetworkType networkType)
+        {
+            string normalized = value?.Trim() ?? string.Empty;
+            if (normalized.Equals("Rectangular", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("Grid", StringComparison.OrdinalIgnoreCase))
+            {
+                networkType = StreetNetworkType.Rectilinear;
+                return true;
+            }
+
+            return Enum.TryParse(normalized, true, out networkType) &&
+                Enum.IsDefined(typeof(StreetNetworkType), networkType);
         }
 
         /// <summary>
