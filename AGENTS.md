@@ -12,7 +12,7 @@ Instructions for AI agents (and humans) working on this repository.
 ## ⚠️ IMPORTANT: keep Mycelium-Templates in sync with every release
 
 The **Mycelium Templates** component syncs example definitions from
-[`SustainableUrbanSystemsLab/Mycelium-Templates`](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates),
+[`MyceliumGH-Dev/Mycelium-Templates`](https://github.com/MyceliumGH-Dev/Mycelium-Templates),
 using a **branch named exactly after the plugin's 4-part version** (it reads
 `AssemblyVersion` at runtime, e.g. `0.1.0.1`). If the branch is missing, the
 component falls back to `main` — users then silently get development templates

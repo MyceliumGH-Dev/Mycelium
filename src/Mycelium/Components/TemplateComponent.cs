@@ -23,7 +23,7 @@ namespace Mycelium.Components
     public class TemplateComponent : GH_Component
     {
         // --- GitHub repository configuration ---
-        private static readonly string RepoOwner = "SustainableUrbanSystemsLab";
+        private static readonly string RepoOwner = "MyceliumGH-Dev";
         private static readonly string RepoName = "Mycelium-Templates";
         // Mutable: falls back to "main" once if the version branch doesn't exist yet.
         private static string RepoBranch = GetBranchFromVersion();

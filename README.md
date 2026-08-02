@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/SustainableUrbanSystemsLab/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
-  <a href="https://github.com/SustainableUrbanSystemsLab/Mycelium/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&label=version&color=blue" alt="Version"/></a>
+  <a href="https://github.com/MyceliumGH-Dev/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/MyceliumGH-Dev/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
+  <a href="https://github.com/MyceliumGH-Dev/Mycelium/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&label=version&color=blue" alt="Version"/></a>
   <a href="https://rhinopackages.github.io/?search=Mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
@@ -44,7 +44,7 @@ Components appear in Grasshopper under the **Mycelium** tab.
 
 ### Manual
 
-Download `Mycelium.gha` from the [latest release](https://github.com/SustainableUrbanSystemsLab/Mycelium/releases), unblock it, and place it in your Grasshopper libraries folder (`_GrasshopperFolders` > Components).
+Download `Mycelium.gha` from the [latest release](https://github.com/MyceliumGH-Dev/Mycelium/releases), unblock it, and place it in your Grasshopper libraries folder (`_GrasshopperFolders` > Components).
 
 ## Components
 
@@ -59,7 +59,7 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 | **Tall Building Config** | Mycelium / Building Types | Allow towers |
 | **Tree Config** | Mycelium / Vegetation | Tree density, size, and courtyard placement |
 | **Terrain Generator** | Mycelium / Site | Procedural terrain from OpenSimplex noise ([docs](docs/terrain-generator.md)) |
-| **Mycelium Templates** | Mycelium / Utilities | Browse and insert example definitions synced from [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) |
+| **Mycelium Templates** | Mycelium / Utilities | Browse and insert example definitions synced from [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates) |
 
 <details>
 <summary><b>Massing Generator inputs &amp; outputs</b></summary>
@@ -78,7 +78,7 @@ Each Building Type Config component exposes: floor range, corner radius, minimum
 
 ## Quick start
 
-Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists every template from the [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository, synced from the branch matching this plugin's version (downloaded and cached on first use). Click one to insert a working example graph next to the component.
+Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists every template from the [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates) repository, synced from the branch matching this plugin's version (downloaded and cached on first use). Click one to insert a working example graph next to the component.
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 
@@ -90,7 +90,7 @@ Drop a **Mycelium Templates** component on the canvas and click **Select Templat
 Requires the [.NET SDK](https://dotnet.microsoft.com/download) (8.0 or newer).
 
 ```bash
-git clone https://github.com/SustainableUrbanSystemsLab/Mycelium.git
+git clone https://github.com/MyceliumGH-Dev/Mycelium.git
 cd Mycelium
 dotnet build Mycelium.sln -c Release
 # → src/Mycelium/bin/Release/net7.0-windows/Mycelium.gha
@@ -122,7 +122,7 @@ Publishing is fully automated through branch-triggered workflows (requires the `
 | `release` | *Yak Release* | `X.Y.Z.W` (public) |
 
 1. Bump `version:` in `manifest.yml` (4-part `X.Y.Z.W`) and update `CHANGELOG.md` on `dev`.
-2. **Create the matching branch in [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates)** (`git push origin main:X.Y.Z.W` there) — the Templates component syncs from the branch named after the plugin version.
+2. **Create the matching branch in [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates)** (`git push origin main:X.Y.Z.W` there) — the Templates component syncs from the branch named after the plugin version.
 3. Merge / fast-forward `dev` into `pre-release` and push — CI builds Windows + Mac distributions and publishes the beta.
 4. When the beta checks out, push the same state to `release` for the public version.
 

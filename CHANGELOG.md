@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Massing Generator retains its existing GUID and parameter order; the analysis-direction input and new outputs are appended for compatibility with existing Grasshopper definitions.
 - Repository metadata now uses the canonical `MyceliumGH-Dev` organization URL after the GitHub organization rename.
+- Mycelium Templates now fetches version-matched examples from `MyceliumGH-Dev/Mycelium-Templates` after the repository transfer.
 
 ## [0.1.0.3] - 2026-08-01
 
@@ -53,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Yak package name capitalized `mycelium` → `Mycelium` (server lookups are case-insensitive, so this is cosmetic — matches the manifest/repo casing everywhere, Eddy3D-style).
-- Template component now syncs from a branch matching the running assembly version (was hardcoded to `main`); `quick_start.ghx` moved out of the plugin into [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates), no bundled templates ship anymore.
+- Template component now syncs from a branch matching the running assembly version (was hardcoded to `main`); `quick_start.ghx` moved out of the plugin into [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates), no bundled templates ship anymore.
 
 ### Removed
 - GitHub Release / Pre-Release workflows (tagged zip releases on GitHub). Yak remains the only distribution channel.
