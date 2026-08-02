@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0.4] - 2026-08-02
+
+### Added
+- Urban morphology indicators from the Massing Generator: plan area density (`lambda_p`), open-space and park ratios, direction-dependent gross frontal area density (`lambda_f`), and building-height mean, standard deviation, minimum, median, 90th percentile, and maximum.
+- Optional `AnalysisDirection` input for directional frontal-area calculations. The vector is normalized in the XY plane and falls back to world X when it is zero or vertical.
+- Schema-versioned `CaseManifest` JSON output containing a deterministic SHA-256 case ID, random seed, installed plug-in version, model units, network family and subtype, effective generator inputs, geometry counts, development metrics, and morphology metrics.
+- Published JSON Schema for the case manifest at `docs/case-manifest.schema.json`.
+- `CITATION.cff` metadata for GitHub and Zenodo software citations.
+- Dataset-export example in Mycelium-Templates, with morphology metrics and JSON manifest outputs wired to panels for inspection and file streaming.
+
+### Changed
+- Massing Generator retains its existing GUID and parameter order; the analysis-direction input and new outputs are appended for compatibility with existing Grasshopper definitions.
+- Repository metadata now uses the canonical `MyceliumGH-Dev` organization URL after the GitHub organization rename.
+
 ## [0.1.0.3] - 2026-08-01
 
 ### Added

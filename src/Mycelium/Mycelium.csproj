@@ -17,7 +17,7 @@
     <Authors>Ilker Karadag;Patrick Kastner</Authors>
     <Copyright>Copyright © 2026 Ilker Karadag, Patrick Kastner</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/SustainableUrbanSystemsLab/Mycelium</RepositoryUrl>
+    <RepositoryUrl>https://github.com/MyceliumGH-Dev/Mycelium</RepositoryUrl>
     <!-- NU1701: the Grasshopper/RhinoCommon packages ship net48 reference assemblies;
          Rhino 8 provides the real .NET 7 assemblies at run time (McNeel's documented setup). -->
     <NoWarn>$(NoWarn);NU1701</NoWarn>

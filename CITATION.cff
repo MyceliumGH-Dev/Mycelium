@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use Mycelium in research, please cite the software release and the associated preprint."
+title: "Mycelium: Procedural Urban Morphology Generation for Rhino and Grasshopper"
+type: software
+authors:
+  - family-names: Karadag
+    given-names: Ilker
+    email: ikaradag3@gatech.edu
+  - family-names: Kastner
+    given-names: Patrick
+    email: patrick.kastner@gatech.edu
+version: 0.1.0.4
+date-released: 2026-08-02
+license: Apache-2.0
+repository-code: "https://github.com/MyceliumGH-Dev/Mycelium"
+url: "https://github.com/MyceliumGH-Dev/Mycelium"
+keywords:
+  - procedural urban modeling
+  - synthetic data
+  - urban morphology
+  - environmental simulation
+  - Grasshopper

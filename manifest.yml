@@ -4,14 +4,14 @@
 #   pre-release channel -> X.Y.Z-beta.W
 # CI stamps the resolved channel version into the staged copy before `yak build`.
 name: Mycelium
-version: 0.1.0.3
+version: 0.1.0.4
 authors:
   - Ilker Karadag, Patrick Kastner
 description: >
   Generative urban massing for Grasshopper. Subdivide a parcel into blocks and
   streets, grow building typologies (courtyard, linear, point, L-shape, U-shape,
   tower), allocate parks and trees, and generate procedural terrain surfaces.
-url: https://github.com/SustainableUrbanSystemsLab/Mycelium
+url: https://github.com/MyceliumGH-Dev/Mycelium
 icon: icon.png
 keywords:
   - grasshopper
@@ -21,3 +21,5 @@ keywords:
   - architecture
   - parcel
   - terrain
+  - synthetic-data
+  - urban-morphology

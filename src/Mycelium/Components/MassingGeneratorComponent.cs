@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using Grasshopper.Kernel;
@@ -51,9 +52,13 @@ namespace Mycelium.Components
             pManager.AddBooleanParameter("GenerateFloorSlabs", "Slabs", "Generate individual floor slabs", GH_ParamAccess.item, false);
             pManager.AddTextParameter("Trees", "Trees", "Tree configuration from Tree Config component (optional)", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Seed", "Seed", "Random seed", GH_ParamAccess.item, 0);
+            pManager.AddVectorParameter("AnalysisDirection", "Dir",
+                "Horizontal analysis direction for directional frontal area density (lambda_f)",
+                GH_ParamAccess.item, Vector3d.XAxis);
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
+            pManager[9].Optional = true; // AnalysisDirection
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -68,6 +73,12 @@ namespace Mycelium.Components
             pManager.AddBrepParameter("Trees", "T", "Tree spheres", GH_ParamAccess.list);
             pManager.AddCurveParameter("Parcels", "Parc", "Building parcel boundaries", GH_ParamAccess.list);
             pManager.AddTextParameter("Metrics", "Met", "Area and unit metrics", GH_ParamAccess.item);
+            pManager.AddTextParameter("MorphologyMetrics", "Morph",
+                "Urban morphology indicators including lambda_p, directional lambda_f, open/park ratios, and height statistics",
+                GH_ParamAccess.item);
+            pManager.AddTextParameter("CaseManifest", "JSON",
+                "Versioned JSON case manifest containing inputs, provenance, counts, development metrics, and morphology metrics",
+                GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -81,6 +92,7 @@ namespace Mycelium.Components
             bool generateFloorSlabs = false;
             string treeConfigRaw = null;
             int seed = 0;
+            Vector3d analysisDirection = Vector3d.XAxis;
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref floorHeight);
@@ -91,6 +103,7 @@ namespace Mycelium.Components
             DA.GetData(6, ref generateFloorSlabs);
             bool hasTreeConfig = DA.GetData(7, ref treeConfigRaw);
             DA.GetData(8, ref seed);
+            DA.GetData(9, ref analysisDirection);
 
             // Tree configuration (optional input, defaults otherwise)
             var treeConfig = TreeConfig.Default;
@@ -166,8 +179,50 @@ namespace Mycelium.Components
                     footprints, masses, heights, floorSlabs, courtyards, trees);
             }
 
-            // 5. Metrics
-            string metrics = BuildMetrics(boundary, totalGFA, allParcels.Count, masses.Count, parks.Count, trees.Count);
+            // 5. Development and morphology metrics
+            var development = CalculateDevelopmentMetrics(boundary, totalGFA);
+            string metrics = BuildMetrics(development, allParcels.Count, masses.Count, parks.Count, trees.Count);
+            var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, parks, analysisDirection);
+
+            // 6. Reproducible parameter/provenance sidecar. Geometry can be exported independently.
+            var manifest = new CaseManifest
+            {
+                Generator = new GeneratorProvenance { Version = CaseManifest.InstalledVersion() },
+                Parameters = new GenerationParameters
+                {
+                    Seed = seed,
+                    ModelUnits = CaseManifest.ActiveModelUnits(),
+                    FloorHeight = floorHeight,
+                    Divisions = divisions,
+                    StreetWidth = streetWidth,
+                    RequestedParks = numParks,
+                    GenerateFloorSlabs = generateFloorSlabs,
+                    StreetNetworkFamily = NetworkTypeLabel(_networkType),
+                    StreetNetworkSubtype = CurrentNetworkLabel(),
+                    BuildingConfigurations = allowedConfigs.Select(config => config.Serialize()).ToArray(),
+                    TreeConfiguration = treeConfig.Serialize(),
+                    TreeConfigurationProvided = hasTreeConfig,
+                    AnalysisDirection = new Direction2D
+                    {
+                        X = morphology.AnalysisDirectionX,
+                        Y = morphology.AnalysisDirectionY
+                    }
+                },
+                Geometry = new GeometrySummary
+                {
+                    Footprints = footprints.Count,
+                    Masses = masses.Count,
+                    Streets = streets.Count,
+                    FloorSlabs = floorSlabs.Count,
+                    Parks = parks.Count,
+                    Courtyards = courtyards.Count,
+                    Trees = trees.Count,
+                    Parcels = parcels.Count
+                },
+                Development = development,
+                Morphology = morphology
+            };
+            manifest.CaseId = manifest.CalculateCaseId();
 
             DA.SetDataList(0, footprints);
             DA.SetDataList(1, masses);
@@ -179,6 +234,8 @@ namespace Mycelium.Components
             DA.SetDataList(7, trees);
             DA.SetDataList(8, parcels);
             DA.SetData(9, metrics);
+            DA.SetData(10, morphology.ToDisplayString());
+            DA.SetData(11, manifest.ToJson());
         }
 
         protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
@@ -591,7 +648,7 @@ namespace Mycelium.Components
             }
         }
 
-        private static string BuildMetrics(Curve boundary, double totalGFA, int parcelCount, int buildingCount, int parkCount, int treeCount)
+        private static DevelopmentMetrics CalculateDevelopmentMetrics(Curve boundary, double totalGFA)
         {
             double siteArea = GeometryHelpers.GetCurveArea(boundary);
             double far = siteArea > 0 ? totalGFA / siteArea : 0.0;
@@ -599,20 +656,35 @@ namespace Mycelium.Components
             double totalNIA = totalGIA * 0.77;  // 77% net internal efficiency
             int totalUnits = (int)(totalNIA / 75.0);  // 75 m² per unit
 
+            return new DevelopmentMetrics
+            {
+                SiteArea = siteArea,
+                GrossFloorArea = totalGFA,
+                GrossInternalArea = totalGIA,
+                NetInternalArea = totalNIA,
+                FloorAreaRatio = far,
+                EstimatedUnits = totalUnits
+            };
+        }
+
+        private static string BuildMetrics(DevelopmentMetrics development, int parcelCount,
+            int buildingCount, int parkCount, int treeCount)
+        {
+
             var metrics = new StringBuilder();
             metrics.AppendLine("--- Area Metrics ---");
-            metrics.AppendLine($"Parcel Area: {siteArea:F0} m²");
-            metrics.AppendLine($"Total GFA: {totalGFA:F0} m²");
-            metrics.AppendLine($"Total GIA: {totalGIA:F0} m²");
-            metrics.AppendLine($"Total NIA: {totalNIA:F0} m²");
-            metrics.AppendLine($"FAR: {far:F2}");
+            metrics.AppendLine($"Parcel Area: {development.SiteArea:F0} m²");
+            metrics.AppendLine($"Total GFA: {development.GrossFloorArea:F0} m²");
+            metrics.AppendLine($"Total GIA: {development.GrossInternalArea:F0} m²");
+            metrics.AppendLine($"Total NIA: {development.NetInternalArea:F0} m²");
+            metrics.AppendLine($"FAR: {development.FloorAreaRatio:F2}");
             metrics.AppendLine();
             metrics.AppendLine("--- Quantities ---");
             metrics.AppendLine($"Parcels: {parcelCount}");
             metrics.AppendLine($"Buildings: {buildingCount}");
             metrics.AppendLine($"Parks: {parkCount}");
             metrics.AppendLine($"Trees: {treeCount}");
-            metrics.Append($"Total Units: {totalUnits}");
+            metrics.Append($"Total Units: {development.EstimatedUnits}");
             return metrics.ToString();
         }
     }

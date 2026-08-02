@@ -20,6 +20,6 @@ namespace Mycelium
 
         public override string AuthorName => "Ilker Karadag, Patrick Kastner";
 
-        public override string AuthorContact => "https://github.com/SustainableUrbanSystemsLab/Mycelium";
+        public override string AuthorContact => "https://github.com/MyceliumGH-Dev/Mycelium";
     }
 }

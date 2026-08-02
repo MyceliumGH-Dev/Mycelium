@@ -29,3 +29,6 @@ jobs:
 
       - name: Build
         run: dotnet build Mycelium.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test Mycelium.sln -c Release --no-build --no-restore

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MyceliumGH-Dev/Mycelium/blob/dev/docs/case-manifest.schema.json",
+  "title": "Mycelium Case Manifest",
+  "description": "Parameter, provenance, geometry-summary, and metric sidecar for a generated Mycelium case.",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "caseId", "generator", "parameters", "geometry", "development", "morphology"],
+  "properties": {
+    "schema": { "type": "string", "format": "uri" },
+    "schemaVersion": { "const": "1.0.0" },
+    "caseId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version", "repository"],
+      "properties": {
+        "name": { "const": "Mycelium" },
+        "version": { "type": "string" },
+        "repository": { "type": "string", "format": "uri" }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "required": ["seed", "modelUnits", "floorHeight", "divisions", "streetWidth", "requestedParks", "generateFloorSlabs", "streetNetworkFamily", "streetNetworkSubtype", "buildingConfigurations", "treeConfiguration", "treeConfigurationProvided", "analysisDirection"],
+      "properties": {
+        "seed": { "type": "integer" },
+        "modelUnits": { "type": "string" },
+        "floorHeight": { "type": "number", "exclusiveMinimum": 0 },
+        "divisions": { "type": "integer", "minimum": 0 },
+        "streetWidth": { "type": "number", "minimum": 0 },
+        "requestedParks": { "type": "integer", "minimum": 0 },
+        "generateFloorSlabs": { "type": "boolean" },
+        "streetNetworkFamily": { "type": "string" },
+        "streetNetworkSubtype": { "type": "string" },
+        "buildingConfigurations": { "type": "array", "items": { "type": "string" } },
+        "treeConfiguration": { "type": "string" },
+        "treeConfigurationProvided": { "type": "boolean" },
+        "analysisDirection": { "$ref": "#/$defs/direction" }
+      }
+    },
+    "geometry": { "$ref": "#/$defs/counts" },
+    "development": { "$ref": "#/$defs/numericObject" },
+    "morphology": { "$ref": "#/$defs/numericObject" }
+  },
+  "$defs": {
+    "direction": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "numericObject": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "integer"] }
+    }
+  }
+}

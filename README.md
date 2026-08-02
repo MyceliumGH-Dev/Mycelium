@@ -28,7 +28,7 @@ Mycelium takes a closed parcel boundary curve and generates complete urban massi
 1. **Subdivision** — recursive binary space partitioning splits the parcel into building blocks separated by streets.
 2. **Typologies** — each block receives a randomly selected building type from the configurations you allow: courtyard (perimeter block), linear bar, point block, L-shape, U-shape, or tall tower.
 3. **Open space** — a chosen number of blocks become parks, populated with procedural trees; courtyards can receive trees too.
-4. **Metrics** — GFA, GIA, NIA, FAR, and unit-count estimates for every generated alternative.
+4. **Metrics & provenance** — development metrics, environmental morphology indicators, and a versioned JSON case manifest for every generated alternative.
 
 Every output is driven by a random seed, so alternatives are fully reproducible.
 
@@ -64,11 +64,13 @@ Download `Mycelium.gha` from the [latest release](https://github.com/Sustainable
 <details>
 <summary><b>Massing Generator inputs &amp; outputs</b></summary>
 
-**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed.
+**Inputs**: Boundary (closed planar curve), FloorHeight, Divisions (subdivision depth), StreetWidth, BuildingConfigs (from the config components), NumParks, GenerateFloorSlabs, Trees (from Tree Config), Seed, and an optional horizontal AnalysisDirection used by directional frontal-area metrics.
 
 Right-click the Massing Generator and use **Street Network** to select `Irregular Grid`, `Orthogonal Grid`, `Diagonal Grid`, or `Radial–Concentric Grid`. The choice is stored in the Grasshopper definition and displayed beneath the component. `Irregular Grid` includes the original seeded `Recursive Orthogonal`, a seeded `Deformed Grid` with displaced shared intersections, and a `Staggered Grid` with offset rows and T-junctions. `Orthogonal Grid` includes nested `Regular Grid`, `Rectangular Grid`, `Cerdà Grid`, and `Hierarchical Superblock` options. Cerdà blocks have chamfered corners; the superblock option groups a fine 3×3 local grid within a wider primary-street grid. `Diagonal Grid` includes `Single Axis`, intersecting `Cross Axes`, and an `Orthogonal Overlay` that cuts a wider diagonal boulevard through a regular grid. `Radial–Concentric Grid` includes a full circular `Civic Core`, straight-sided `Polygonal Radial` rings, and a one-sided `Fan Plan`; all three terminate at a finite focal block instead of a point.
 
-**Outputs**: Footprints, Masses, Heights, Streets, FloorSlabs, Parks, Courtyards, Trees, Parcels, Metrics.
+**Outputs**: Footprints, Masses, Heights, Streets, FloorSlabs, Parks, Courtyards, Trees, Parcels, Metrics, MorphologyMetrics, and CaseManifest.
+
+`MorphologyMetrics` reports plan area density (`lambda_p`), open-space and park ratios, directional gross frontal area density (`lambda_f`), and building-height statistics including mean, standard deviation, median, and 90th percentile. `CaseManifest` is schema-versioned JSON containing a deterministic SHA-256 case ID, the effective generation parameters, random seed, plug-in version, street-network selection, model units, geometry counts, development metrics, and morphology metrics. Its schema is published at [`docs/case-manifest.schema.json`](docs/case-manifest.schema.json).
 
 Each Building Type Config component exposes: floor range, corner radius, minimum footprint area, setback range, and building depth range. Feed any combination of configs into the generator — each block picks one at random.
 
@@ -143,7 +145,7 @@ Pushes are idempotent (already-published distributions are skipped), and every r
 └── .github/workflows/      # CI, packaging dry-run, Yak release channels
 ```
 
-Example `.gh`/`.ghx` definitions live in the separate [Mycelium-Templates](https://github.com/SustainableUrbanSystemsLab/Mycelium-Templates) repository, branched per plugin version.
+Example `.gh`/`.ghx` definitions live in the separate [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates) repository, branched per plugin version. The `dataset_export.ghx` example wires the morphology and manifest outputs to panels; use a panel's **Stream Contents** command to write the JSON sidecar.
 
 </details>
 
@@ -151,6 +153,10 @@ Example `.gh`/`.ghx` definitions live in the separate [Mycelium-Templates](https
 
 - **Dr. Ilker Karadag** ([@karadagi](https://github.com/karadagi)) — Associate Professor of Architecture, Sakarya University. Original author.
 - **Dr. Patrick Kastner** ([@kastnerp](https://github.com/kastnerp)) — Assistant Professor, School of Architecture, Georgia Institute of Technology; [Sustainable Urban Systems Lab](https://github.com/SustainableUrbanSystemsLab).
+
+## Citation
+
+Use the repository's **Cite this repository** menu, populated from [`CITATION.cff`](CITATION.cff). Versioned archival DOIs are issued through the Zenodo–GitHub integration beginning with release 0.1.0.4.
 
 ## License
 
