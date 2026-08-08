@@ -32,6 +32,8 @@
   <ItemGroup>
     <Compile Include="..\..\src\Mycelium\Core\CaseManifest.cs" Link="Core\CaseManifest.cs" />
     <Compile Include="..\..\src\Mycelium\Core\GeometryHelpers.cs" Link="Core\GeometryHelpers.cs" />
+    <Compile Include="..\..\src\Mycelium\Core\GreenNetworkGenerator.cs" Link="Core\GreenNetworkGenerator.cs" />
     <Compile Include="..\..\src\Mycelium\Core\MorphologyMetrics.cs" Link="Core\MorphologyMetrics.cs" />
+    <Compile Include="..\..\src\Mycelium\Core\TreeGenerator.cs" Link="Core\TreeGenerator.cs" />
   </ItemGroup>
 </Project>

@@ -58,6 +58,7 @@ Download `Mycelium.gha` from the [latest release](https://github.com/MyceliumGH-
 | **U-Shape Config** | Mycelium / Building Types | Allow U-shaped buildings |
 | **Tall Building Config** | Mycelium / Building Types | Allow towers |
 | **Tree Config** | Mycelium / Vegetation | Tree density, size, and courtyard placement |
+| **Green Network Generator** | Mycelium / Vegetation | Seeded perimeter belts, corridors, refuge patches, and schematic trees |
 | **Terrain Generator** | Mycelium / Site | Procedural terrain from OpenSimplex noise ([docs](docs/terrain-generator.md)) |
 | **Mycelium Templates** | Mycelium / Utilities | Browse and insert example definitions synced from [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates) |
 

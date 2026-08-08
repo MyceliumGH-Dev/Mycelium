@@ -8,5 +8,6 @@ MyceliumL,L-Shape Config,Building Types,built,#29473A,mass,gear
 MyceliumU,U-Shape Config,Building Types,built,#29473A,mass,gear
 MyceliumTower,Tall Building Config,Building Types,built,#29473A,mass (plates),gear
 MyceliumTree,Tree Config,Vegetation,plant,#7E9469,canopy,gear
+MyceliumGreenNetwork,Green Network Generator,Vegetation,plant,#7E9469,field,—
 MyceliumTerrain,Terrain Generator,Site,ground,#6B4F35,terrain,—
 MyceliumTemplate,Mycelium Templates,Utilities,tool,#5A6660,stack,down

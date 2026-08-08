@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `Green Network Generator`, a backward-compatible Vegetation component that creates seeded perimeter belts, guide-aligned or automatically connected corridors, refuge patches, and optional schematic trees while subtracting supplied obstacle curves.
+
 ## [0.1.0.4] - 2026-08-02
 
 ### Added

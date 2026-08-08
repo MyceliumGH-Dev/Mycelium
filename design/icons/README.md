@@ -1,6 +1,6 @@
 # Mycelium Icon System
 
-Vector source and generator for the eleven Mycelium component icons.
+Vector source and generator for the twelve Mycelium component icons.
 Only the PNGs ship; everything in this directory is the source they come from.
 
 ```
@@ -22,7 +22,7 @@ every glyph in both paths. Rasterise by drawing the 24x24 SVG into a 24x24 canva
 draw at 96 and downscale, the 1.25 stroke has to land on the pixel grid.
 
 ```js
-MYC.all();                    // 11 glyphs, throws if anything leaves the safe area
+MYC.all();                    // 12 glyphs, throws if anything leaves the safe area
 MYC.all()[0].svg;             // standalone 24x24 SVG string
 MYC.sprite();                 // <symbol> sheet
 ```

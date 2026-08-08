@@ -118,6 +118,18 @@
     }
   });
 
+  def({
+    name: 'MyceliumGreenNetwork', component: 'Green Network Generator', panel: 'Vegetation',
+    family: 'plant', motif: 'field', badge: null,
+    note: 'A connected sage field: perimeter band, crossing corridor, and refuge node.',
+    draw: function (k) {
+      var p = k.iso(11.0, 7.0);
+      return k.M.field(p, k.rect(0, 0, 9.6, 9.6), 0.8,
+        [[1.8, 4.8, 7.8, 4.8], [4.8, 1.8, 4.8, 7.8]],
+        { fill: k.PAL.sage, wall: k.PAL.sage });
+    }
+  });
+
   /* ---- panel: Site -------------------------------------------------------- */
   def({
     name: 'MyceliumTerrain', component: 'Terrain Generator', panel: 'Site',
