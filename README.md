@@ -77,6 +77,8 @@ Each Building Type Config component exposes: floor range, corner radius, minimum
 
 </details>
 
+The Green Network Generator is designed to follow the Massing Generator in the Grasshopper graph: connect the same site `Boundary`, connect `Footprints` to `BuildingFootprints`, and connect `Parks` to `ExistingParks`. Existing parks become anchors, new seeded refuges supplement them, and automatic corridors connect the combined network while excluding building footprints. Optional `CorridorGuides` override the automatic connectors when a designed route is required.
+
 ## Quick start
 
 Drop a **Mycelium Templates** component on the canvas and click **Select Template** — it lists every template from the [Mycelium-Templates](https://github.com/MyceliumGH-Dev/Mycelium-Templates) repository, synced from the branch matching this plugin's version (downloaded and cached on first use). Click one to insert a working example graph next to the component.

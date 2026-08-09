@@ -10,8 +10,8 @@ public class GreenNetworkGeneratorTests
     [Fact(Skip = "Rhino geometry booleans require the Rhino native runtime.")]
     public void SameSeedProducesSameRefuges()
     {
-        var a = GreenNetworkGenerator.Generate(Boundary(), null, null, 6, 4, 4, 7, 0, 42);
-        var b = GreenNetworkGenerator.Generate(Boundary(), null, null, 6, 4, 4, 7, 0, 42);
+        var a = GreenNetworkGenerator.Generate(Boundary(), null, null, null, 6, 4, 4, 7, 0, 42);
+        var b = GreenNetworkGenerator.Generate(Boundary(), null, null, null, 6, 4, 4, 7, 0, 42);
         Assert.Equal(a.Refuges.Count, b.Refuges.Count);
         for (int i = 0; i < a.Refuges.Count; i++)
             Assert.True(a.Refuges[i].GetBoundingBox(true).Center.DistanceTo(
@@ -23,7 +23,7 @@ public class GreenNetworkGeneratorTests
     {
         var result = GreenNetworkGenerator.Generate(Boundary(), new List<Curve>
             { new LineCurve(new Point3d(10, 40, 0), new Point3d(90, 40, 0)) },
-            null, 6, 4, 2, 7, 0, 7);
+            null, null, 6, 4, 2, 7, 0, 7);
         Assert.NotEmpty(result.Belt);
         Assert.NotEmpty(result.Corridors);
         Assert.Equal(2, result.Refuges.Count);

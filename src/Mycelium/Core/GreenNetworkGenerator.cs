@@ -17,7 +17,8 @@ namespace Mycelium.Core
     public static class GreenNetworkGenerator
     {
         public static GreenNetworkResult Generate(Curve boundary, IEnumerable<Curve> guides,
-            IEnumerable<Curve> obstacles, double beltWidth, double corridorWidth,
+            IEnumerable<Curve> obstacles, IEnumerable<Curve> existingParks,
+            double beltWidth, double corridorWidth,
             int refugeCount, double refugeRadius, double treeDensity, int seed,
             double tolerance = 0.001)
         {
@@ -30,6 +31,7 @@ namespace Mycelium.Core
                 throw new ArgumentException("Boundary must be planar.", nameof(boundary));
 
             var cleanObstacles = ValidClosed(obstacles);
+            var parkAnchors = ValidClosed(existingParks);
             if (beltWidth > tolerance)
             {
                 Curve outer = boundary.DuplicateCurve();
@@ -42,9 +44,19 @@ namespace Mycelium.Core
                 }
             }
 
-            var refugeCenters = SeededPoints(boundary, plane, Math.Max(0, refugeCount), seed, tolerance);
-            foreach (Point3d center in refugeCenters)
+            var refugeCenters = new List<Point3d>();
+            foreach (Curve park in parkAnchors)
             {
+                AddClipped(result.Refuges, new[] { park.DuplicateCurve() }, boundary,
+                    cleanObstacles, tolerance);
+                AreaMassProperties properties = AreaMassProperties.Compute(park);
+                if (properties != null) refugeCenters.Add(properties.Centroid);
+            }
+            int existingAnchorCount = refugeCenters.Count;
+            refugeCenters.AddRange(SeededPoints(boundary, plane, Math.Max(0, refugeCount), seed, tolerance));
+            for (int i = existingAnchorCount; i < refugeCenters.Count; i++)
+            {
+                Point3d center = refugeCenters[i];
                 var circle = new Circle(plane, center, Math.Max(refugeRadius, tolerance)).ToNurbsCurve();
                 AddClipped(result.Refuges, new[] { circle }, boundary, cleanObstacles, tolerance);
             }
