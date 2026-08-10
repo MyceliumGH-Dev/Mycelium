@@ -1,0 +1,101 @@
+name: Template Integrity
+
+# Checks MyceliumGH-Dev/Mycelium-Templates against the component definitions in this repo:
+# every archived component GUID still resolves, and every port count and label still
+# matches what the plug-in registers.
+#
+# Nothing at run time performs this check. The Templates component hands the user whatever
+# .ghx it finds on the branch matching their version, so a stale template fails silently on
+# their canvas — an unresolved component, or ports wired to labels that no longer exist.
+#
+# Rhino-free: the checks parse C# sources and XML, so this runs on ubuntu.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "src/Mycelium/**/*.cs"
+      - "tools/TemplateSync.Cli/**"
+      - "tests/Mycelium.Templates.Tests/**"
+      - ".github/workflows/template-integrity.yml"
+  pull_request:
+    branches: [dev]
+    paths:
+      - "src/Mycelium/**/*.cs"
+      - "tools/TemplateSync.Cli/**"
+      - "tests/Mycelium.Templates.Tests/**"
+  workflow_dispatch:
+    inputs:
+      template_ref:
+        description: "Mycelium-Templates ref to check (default: the version in manifest.yml, falling back to main)"
+        required: false
+  schedule:
+    # The templates repo can drift without anything happening in this one, so check weekly
+    # even when no push triggers it.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: Mycelium
+
+      - name: Resolve template ref
+        id: ref
+        shell: bash
+        run: |
+          ref="${{ inputs.template_ref }}"
+          if [ -z "$ref" ]; then
+            ref=$(sed -n 's/^version:[[:space:]]*//p' Mycelium/manifest.yml | head -1 | tr -d '[:space:]')
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout templates
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        continue-on-error: true
+        id: templates
+        with:
+          repository: MyceliumGH-Dev/Mycelium-Templates
+          ref: ${{ steps.ref.outputs.ref }}
+          path: Mycelium-Templates
+
+      - name: Fall back to main when the version branch does not exist yet
+        if: steps.templates.outcome == 'failure'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: MyceliumGH-Dev/Mycelium-Templates
+          ref: main
+          path: Mycelium-Templates
+
+      - name: Note which ref is being checked
+        run: |
+          echo "::notice::Checking templates ref '$(git -C Mycelium-Templates rev-parse --abbrev-ref HEAD)' against plugin version $(sed -n 's/^version:[[:space:]]*//p' Mycelium/manifest.yml | head -1)."
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run template integrity tests
+        working-directory: Mycelium
+        env:
+          # Absolute, so it does not depend on the test host's working directory.
+          MYCELIUM_TEMPLATE_REPO_DIR: ${{ github.workspace }}/Mycelium-Templates
+          # Turn "no templates found" from a skip into a failure: in this job a missing
+          # checkout means the job verified nothing.
+          MYCELIUM_REQUIRE_TEMPLATES: "true"
+        run: dotnet test tests/Mycelium.Templates.Tests/Mycelium.Templates.Tests.csproj -c Release
+
+      - name: Report drift in detail
+        if: failure()
+        working-directory: Mycelium
+        run: |
+          dotnet run --project tools/TemplateSync.Cli -c Release -- \
+            --repo-dir "${{ github.workspace }}/Mycelium-Templates" --no-git-update || true

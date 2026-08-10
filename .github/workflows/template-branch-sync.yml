@@ -1,0 +1,99 @@
+name: Template Branch Sync
+
+# Every plugin version needs a matching branch in Mycelium-Templates: the Mycelium
+# Templates component resolves its branch from the assembly version, and a missing branch
+# means users silently fall back to `main` and get development templates instead of the
+# ones matching their installed version. This workflow creates that branch automatically
+# whenever a beta (pre-release) or stable (release) goes out, and makes it the repo
+# default on a stable — the step AGENTS.md previously listed as manual.
+#
+# Cross-repo writes need more than the workflow's GITHUB_TOKEN (which is scoped to this
+# repository). Token: RELEASE_TOKEN, a fine-grained PAT covering Mycelium-Templates with
+# Contents + Administration read/write. Without the secret the workflow only warns;
+# releases are never blocked.
+
+on:
+  push:
+    branches:
+      - pre-release
+      - release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync-template-branch:
+    runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*//p' manifest.yml | head -1 | tr -d '[:space:]')
+          if [ -z "$version" ]; then
+            echo "Could not read version from manifest.yml" >&2
+            exit 1
+          fi
+          echo "branch=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Warn when no templates token is set
+        if: env.HAS_TOKEN != 'true'
+        run: |
+          echo "::warning::RELEASE_TOKEN is not set — cannot create template branch '${{ steps.version.outputs.branch }}' in Mycelium-Templates. Create it manually (git push origin main:${{ steps.version.outputs.branch }} in that repo) or add RELEASE_TOKEN, a fine-grained PAT covering Mycelium-Templates with Contents + Administration write."
+
+      - name: Ensure template branch exists (and set default on stable release)
+        if: env.HAS_TOKEN == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          github-token: ${{ secrets.RELEASE_TOKEN }}
+          script: |
+            const owner = 'MyceliumGH-Dev';
+            const repo = 'Mycelium-Templates';
+            const branch = '${{ steps.version.outputs.branch }}';
+
+            try {
+              await github.rest.repos.getBranch({ owner, repo, branch });
+              core.info(`Template branch '${branch}' already exists.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              // Branch from the NEWEST existing version branch, not the repo default: the
+              // default only advances on stable releases and can lag several versions, which
+              // would resurrect stale template content on freshly created branches.
+              const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+              const isVersion = (n) => /^\d+(\.\d+)+$/.test(n);
+              const byVersion = (a, b) => {
+                const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+                for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                  const d = (pa[i] || 0) - (pb[i] || 0);
+                  if (d) return d;
+                }
+                return 0;
+              };
+              const versions = branches.map(b => b.name).filter(isVersion).sort(byVersion);
+              let base = versions[versions.length - 1];
+              if (!base) {
+                const { data: repoInfo } = await github.rest.repos.get({ owner, repo });
+                base = repoInfo.default_branch;
+              }
+              const { data: ref } = await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` });
+              await github.rest.git.createRef({
+                owner, repo,
+                ref: `refs/heads/${branch}`,
+                sha: ref.object.sha,
+              });
+              core.info(`Created template branch '${branch}' from '${base}' (${ref.object.sha.slice(0, 7)}).`);
+            }
+
+            // Stable releases become the repo default so browsing lands on the shipped set.
+            // Betas leave the default on the last stable.
+            if ('${{ github.ref_name }}' === 'release') {
+              await github.rest.repos.update({ owner, repo, default_branch: branch });
+              core.info(`Set '${branch}' as the default branch of ${owner}/${repo}.`);
+            }

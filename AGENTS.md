@@ -21,14 +21,36 @@ instead of the ones matching their installed version.
 **Release checklist (do not publish without this):**
 
 1. Bump `version:` in `manifest.yml` and update `CHANGELOG.md` on `dev`.
-2. In the **Mycelium-Templates** repo, create a branch named after the new
-   version from its `main` tip:
-   `git push origin main:<X.Y.Z.W>` (e.g. `git push origin main:0.1.0.2`).
-3. Fast-forward `dev` → `pre-release` (publishes the beta), then → `release`
+2. Fast-forward `dev` → `pre-release` (publishes the beta), then → `release`
    (publishes the public version).
+
+Step 2 is no longer preceded by a manual branch push: `template-branch-sync.yml`
+creates the matching branch in Mycelium-Templates on every push to `pre-release`
+and `release`, branching from the newest existing version branch, and makes it
+the repo default on a stable release. **It needs the `RELEASE_TOKEN` secret** (a
+fine-grained PAT covering Mycelium-Templates with Contents + Administration
+write). Without it the workflow only warns — it never blocks a release — and the
+branch must still be created by hand:
+`git push origin main:<X.Y.Z.W>` in the templates repo.
 
 The templates repo's `main` tracks development; version branches are frozen
 snapshots matching each release.
+
+## Keeping templates consistent with the components
+
+Nothing at run time checks that a template's components still exist or still have
+the ports the plug-in registers, so a stale `.ghx` fails silently on the user's
+canvas. Two things guard it, both Rhino-free:
+
+- `tools/TemplateSync.Cli` — reports drift, and repairs port labels and stale
+  component GUIDs with `--fix`. Port **count** changes need a Grasshopper re-save;
+  the tool reports and refuses those deliberately.
+- `tests/Mycelium.Templates.Tests`, run by `template-integrity.yml` against the
+  branch matching `manifest.yml` (falling back to `main`).
+
+Both parse component definitions out of the C# source rather than reflecting over a
+built `.gha`. **Consequence: renaming a parameter or reordering `pManager.Add*` calls
+is a template-breaking change** — run the CLI in the same commit.
 
 ## Icons
 

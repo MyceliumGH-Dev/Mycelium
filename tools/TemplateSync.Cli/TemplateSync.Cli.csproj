@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseAppHost>false</UseAppHost>
+    <RootNamespace>TemplateSync.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The template integrity tests drive the same parsing code this tool uses; duplicating
+         it in the test project is how the two would drift apart. -->
+    <InternalsVisibleTo Include="Mycelium.Templates.Tests" />
+  </ItemGroup>
+
+  <!-- No reference to src/Mycelium: the tool reads component definitions out of the C#
+       SOURCE and the version out of manifest.yml, so it needs neither Rhino nor a built
+       .gha and runs on any OS, including Linux CI. -->
+
+</Project>
