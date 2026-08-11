@@ -29,10 +29,8 @@ creates the matching branch in Mycelium-Templates on every push to `pre-release`
 and `release`, branching from the newest existing version branch, and makes it
 the repo default on a stable release. **It needs the
 `MYCELIUM_TEMPLATE_RELEASE_TOKEN` secret** (a fine-grained PAT covering
-Mycelium-Templates with Contents + Administration write). The older
-`RELEASE_TOKEN` name is still accepted as a fallback so the rename could happen
-without a release landing in the gap; delete it once the new name is in place.
-Without either the workflow only warns — it never blocks a release — and the
+Mycelium-Templates with Contents + Administration write).
+Without it the workflow only warns — it never blocks a release — and the
 branch must still be created by hand:
 `git push origin main:<X.Y.Z.W>` in the templates repo.
 
