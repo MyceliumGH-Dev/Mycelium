@@ -85,6 +85,7 @@ internal static class Program
         foreach (var templatePath in templates)
         {
             var relative = Path.GetRelativePath(repoDir, templatePath);
+            var hadBom = TemplateArchive.HasUtf8Bom(templatePath);
             var doc = XDocument.Load(templatePath, LoadOptions.PreserveWhitespace);
             var usages = TemplateArchive.ExtractUsages(doc, relative, libraryGuid);
             var dirty = false;
@@ -98,7 +99,7 @@ internal static class Program
 
             if (dirty)
             {
-                doc.Save(templatePath, SaveOptions.DisableFormatting);
+                TemplateArchive.Save(doc, templatePath, hadBom);
                 Console.WriteLine($"{"",-42} -> rewritten");
             }
         }

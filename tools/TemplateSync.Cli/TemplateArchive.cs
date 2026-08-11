@@ -1,3 +1,5 @@
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace TemplateSync.Cli;
@@ -155,6 +157,36 @@ internal static class TemplateArchive
                 });
             }
         }
+    }
+
+    /// <summary>True when the file starts with a UTF-8 byte-order mark.</summary>
+    public static bool HasUtf8Bom(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var head = new byte[3];
+        return stream.Read(head, 0, 3) == 3 && head[0] == 0xEF && head[1] == 0xBB && head[2] == 0xBF;
+    }
+
+    /// <summary>
+    /// Writes the archive back, preserving whether it carried a byte-order mark.
+    ///
+    /// Grasshopper is inconsistent about this — templates on `main` have no BOM, the ones
+    /// on the 0.1.0.4 branch do — and XDocument.Save(string) unconditionally writes one.
+    /// Either direction shows up as a change to the XML declaration of every file touched:
+    /// an encoding edit riding along with a semantic one, in files nobody reviews line by
+    /// line. The diff should contain exactly the labels and GUIDs that changed.
+    /// </summary>
+    public static void Save(XDocument doc, string path, bool emitBom)
+    {
+        var settings = new XmlWriterSettings
+        {
+            Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: emitBom),
+            Indent = false,
+            OmitXmlDeclaration = false,
+        };
+
+        using var writer = XmlWriter.Create(path, settings);
+        doc.Save(writer);
     }
 
     public static bool SetItemValue(XElement itemsElement, string itemName, string value)
