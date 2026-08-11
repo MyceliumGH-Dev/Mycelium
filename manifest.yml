@@ -11,7 +11,13 @@ description: >
   Generative urban massing for Grasshopper. Subdivide a parcel into blocks and
   streets, grow building typologies (courtyard, linear, point, L-shape, U-shape,
   tower), allocate parks and trees, and generate procedural terrain surfaces.
-url: https://github.com/MyceliumGH-Dev/Mycelium
+
+  Documentation: https://mycelium-gh-docs.netlify.app - Source:
+  https://github.com/MyceliumGH-Dev/Mycelium
+# Shown as the package's homepage in the Rhino Package Manager, so it points at the
+# website; the repo is linked from the description above. Folded scalar (>) joins the
+# lines of each paragraph, so keep related links in one paragraph.
+url: https://mycelium-gh.netlify.app
 icon: icon.png
 keywords:
   - grasshopper
