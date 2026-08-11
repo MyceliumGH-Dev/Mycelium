@@ -8,9 +8,11 @@ name: Template Branch Sync
 # default on a stable — the step AGENTS.md previously listed as manual.
 #
 # Cross-repo writes need more than the workflow's GITHUB_TOKEN (which is scoped to this
-# repository). Token: RELEASE_TOKEN, a fine-grained PAT covering Mycelium-Templates with
-# Contents + Administration read/write. Without the secret the workflow only warns;
-# releases are never blocked.
+# repository). Token: MYCELIUM_TEMPLATE_RELEASE_TOKEN, a fine-grained PAT covering
+# Mycelium-Templates with Contents + Administration read/write. The older RELEASE_TOKEN
+# name is still accepted and takes second place, so the rename can happen without a
+# release landing in the gap. Delete RELEASE_TOKEN once the new name is in place.
+# Without either secret the workflow only warns; releases are never blocked.
 
 on:
   push:
@@ -26,7 +28,7 @@ jobs:
   sync-template-branch:
     runs-on: ubuntu-latest
     env:
-      HAS_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+      HAS_TOKEN: ${{ secrets.MYCELIUM_TEMPLATE_RELEASE_TOKEN != '' || secrets.RELEASE_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -46,13 +48,13 @@ jobs:
       - name: Warn when no templates token is set
         if: env.HAS_TOKEN != 'true'
         run: |
-          echo "::warning::RELEASE_TOKEN is not set — cannot create template branch '${{ steps.version.outputs.branch }}' in Mycelium-Templates. Create it manually (git push origin main:${{ steps.version.outputs.branch }} in that repo) or add RELEASE_TOKEN, a fine-grained PAT covering Mycelium-Templates with Contents + Administration write."
+          echo "::warning::MYCELIUM_TEMPLATE_RELEASE_TOKEN is not set — cannot create template branch '${{ steps.version.outputs.branch }}' in Mycelium-Templates. Create it manually (git push origin main:${{ steps.version.outputs.branch }} in that repo) or add MYCELIUM_TEMPLATE_RELEASE_TOKEN, a fine-grained PAT covering Mycelium-Templates with Contents + Administration write."
 
       - name: Ensure template branch exists (and set default on stable release)
         if: env.HAS_TOKEN == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
-          github-token: ${{ secrets.RELEASE_TOKEN }}
+          github-token: ${{ secrets.MYCELIUM_TEMPLATE_RELEASE_TOKEN != '' && secrets.MYCELIUM_TEMPLATE_RELEASE_TOKEN || secrets.RELEASE_TOKEN }}
           script: |
             const owner = 'MyceliumGH-Dev';
             const repo = 'Mycelium-Templates';
