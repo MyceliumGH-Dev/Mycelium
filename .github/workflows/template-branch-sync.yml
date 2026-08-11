@@ -93,7 +93,20 @@ jobs:
 
             // Stable releases become the repo default so browsing lands on the shipped set.
             // Betas leave the default on the last stable.
+            //
+            // Non-fatal on purpose: this is the one call needing Administration rather than
+            // just Contents, and cosmetics about which branch GitHub shows first must never
+            // fail a release that has already been published to Yak. The branch itself —
+            // the part the Templates component actually resolves — is created above.
             if ('${{ github.ref_name }}' === 'release') {
-              await github.rest.repos.update({ owner, repo, default_branch: branch });
-              core.info(`Set '${branch}' as the default branch of ${owner}/${repo}.`);
+              try {
+                await github.rest.repos.update({ owner, repo, default_branch: branch });
+                core.info(`Set '${branch}' as the default branch of ${owner}/${repo}.`);
+              } catch (error) {
+                core.warning(
+                  `Could not set '${branch}' as the default branch of ${owner}/${repo} ` +
+                  `(${error.status} ${error.message}). The branch exists, so the Templates ` +
+                  `component resolves correctly; grant the token Administration write, or ` +
+                  `change the default by hand, if you want browsing to land there too.`);
+              }
             }
