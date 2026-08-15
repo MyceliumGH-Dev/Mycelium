@@ -15,6 +15,7 @@
   <a href="https://rhinopackages.github.io/?search=Mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
+  <a href="https://doi.org/10.5281/zenodo.21764053"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.21764053.svg" alt="DOI"/></a>
 </p>
 
 ---
