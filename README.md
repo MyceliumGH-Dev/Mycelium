@@ -19,7 +19,11 @@
 
 ---
 
-![Sample massing outputs](docs/images/samples.gif)
+[![Watch the Mycelium workflow demo](docs/images/samples.gif)](docs/images/mycelium-demo.mp4)
+
+<p align="center">
+  <a href="docs/images/mycelium-demo.mp4"><strong>▶ Watch the Mycelium workflow demo</strong></a>
+</p>
 
 ## What it does
 
