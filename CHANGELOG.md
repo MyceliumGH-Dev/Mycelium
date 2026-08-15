@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - `Green Network Generator`, a backward-compatible Vegetation component that connects directly to Massing Generator boundary, footprint, and park outputs. Existing parks become network anchors; seeded refuges and guide-aligned or automatic corridors extend them while building footprints are excluded.
+- `StreetNetwork` input on the Massing Generator. Wiring a sub-option name (`"Orthogonal/Cerda"`, `"Fan Plan"`, …) overrides the context-menu selection, so batch campaigns can sweep the network families without editing the definition. Names are case-, accent- and separator-insensitive; unknown names raise a warning listing the valid ones.
+- The case manifest now records the canonical boundary digest, the boundary canonicalization tolerance and decimal count, the document absolute tolerance, and the number of guarded boolean fallbacks taken while generating the case. Manifest schema version is now `1.1.0`.
+- Plan-area-weighted mean height and standard deviation alongside the unweighted values. Roughness parameterizations expect the weighted moments; the unweighted ones give a single small structure the same influence as a tower.
+- `MassCount` in the morphology metrics, reported separately from the footprint count.
+- Runtime warnings when a boundary cannot be canonicalized (the case ID then does not distinguish sites) and when any boolean fallback was taken (a footprint may extend past its setback).
+- Tests covering case-identifier reproducibility and discrimination, boundary canonicalization invariants, street-network name parsing, and weighted height statistics.
+
+### Fixed
+- Gross floor area no longer double-counts courtyard voids. A perimeter block is returned as an outer curve plus a courtyard curve, and the previous per-curve area sum added the void instead of subtracting it, inflating GFA, GIA, NIA, FAR and the estimated unit count. GFA now uses the same planar-region measure as plan area density, so the two agree by construction.
+- Radial-concentric sectors no longer degenerate into self-intersecting bow ties when the street width consumes the whole angular span at a small radius. Such cells were still closed and still reported a positive area, so they were accepted as parcels; they are now rejected.
+- The case identifier now depends on the site boundary. Two different sites sharing a parameter vector previously received the same identifier. It is also independent of the order in which building configurations are wired, and is built from a fixed key order rather than relying on serializer property order.
+- `BuildingFootprintCount` reported the number of masses rather than the number of footprints.
+
+### Changed
+- Ring parcels in the radial-concentric families use arc sampling derived from radius and tolerance instead of a fixed eight segments per arc, so large rings are no longer visibly faceted and small ones are no longer over-tessellated.
+- Street-network enums moved to `Core/StreetNetworkTypes.cs`. Numeric values are unchanged, so saved definitions still deserialize.
 
 ## [0.1.0.4] - 2026-08-02
 

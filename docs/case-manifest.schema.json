@@ -7,7 +7,7 @@
   "required": ["schema", "schemaVersion", "caseId", "generator", "parameters", "geometry", "development", "morphology"],
   "properties": {
     "schema": { "type": "string", "format": "uri" },
-    "schemaVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.1.0" },
     "caseId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "generator": {
       "type": "object",
@@ -20,10 +20,18 @@
     },
     "parameters": {
       "type": "object",
-      "required": ["seed", "modelUnits", "floorHeight", "divisions", "streetWidth", "requestedParks", "generateFloorSlabs", "streetNetworkFamily", "streetNetworkSubtype", "buildingConfigurations", "treeConfiguration", "treeConfigurationProvided", "analysisDirection"],
+      "required": ["seed", "modelUnits", "modelAbsoluteTolerance", "boundaryCanonicalTolerance", "boundaryCanonicalDecimals", "floorHeight", "divisions", "streetWidth", "requestedParks", "generateFloorSlabs", "streetNetworkFamily", "streetNetworkSubtype", "buildingConfigurations", "treeConfiguration", "treeConfigurationProvided", "analysisDirection"],
       "properties": {
         "seed": { "type": "integer" },
         "modelUnits": { "type": "string" },
+        "modelAbsoluteTolerance": { "type": "number", "exclusiveMinimum": 0 },
+        "boundaryDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the canonical boundary form. Absent when the boundary could not be canonicalized, in which case the case identifier does not distinguish sites."
+        },
+        "boundaryCanonicalTolerance": { "type": "number", "exclusiveMinimum": 0 },
+        "boundaryCanonicalDecimals": { "type": "integer", "minimum": 0 },
         "floorHeight": { "type": "number", "exclusiveMinimum": 0 },
         "divisions": { "type": "integer", "minimum": 0 },
         "streetWidth": { "type": "number", "minimum": 0 },

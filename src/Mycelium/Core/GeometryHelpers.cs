@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Rhino.Geometry;
 
@@ -9,8 +10,31 @@ namespace Mycelium.Core
     public static class GeometryHelpers
     {
         /// <summary>
+        /// Counts guarded boolean fallbacks taken on the calling thread since the last
+        /// <see cref="ResetBooleanFallbackCount"/>. A fallback means Rhino's boolean
+        /// intersection failed and an untrimmed input curve was substituted, so the result
+        /// may violate the requested setback or buildable area. Recording the count turns a
+        /// silent geometric compromise into an auditable per-case quality signal.
+        /// </summary>
+        [ThreadStatic]
+        private static int _booleanFallbackCount;
+
+        public static int BooleanFallbackCount => _booleanFallbackCount;
+
+        public static void ResetBooleanFallbackCount()
+        {
+            _booleanFallbackCount = 0;
+        }
+
+        /// <summary>
         /// Get the area of a closed curve; returns 0 for open or invalid curves.
         /// </summary>
+        /// <remarks>
+        /// This is a single-loop area. It does NOT subtract inner loops, so summing it over a
+        /// multi-loop region (for example a perimeter block returned as an outer curve plus a
+        /// courtyard curve) double-counts the void. Use <see cref="GetRegionArea"/> for any
+        /// area that must be topologically correct.
+        /// </remarks>
         public static double GetCurveArea(Curve curve)
         {
             if (curve == null || !curve.IsClosed)
@@ -18,6 +42,38 @@ namespace Mycelium.Core
 
             var amp = AreaMassProperties.Compute(curve);
             return amp != null ? amp.Area : 0.0;
+        }
+
+        /// <summary>
+        /// Area of the planar region bounded by a set of curves, with inner loops subtracted.
+        /// Curves are resolved into planar Breps together so that a perimeter block returned as
+        /// an outer boundary plus a courtyard loop yields the built area only.
+        /// Falls back to a plain per-curve sum when planar Brep construction fails.
+        /// </summary>
+        public static double GetRegionArea(IReadOnlyList<Curve> curves)
+        {
+            if (curves == null || curves.Count == 0)
+                return 0.0;
+
+            var planarRegions = Brep.CreatePlanarBreps(curves, 0.001);
+            if (planarRegions == null || planarRegions.Length == 0)
+            {
+                double fallbackSum = 0.0;
+                foreach (var curve in curves)
+                    fallbackSum += GetCurveArea(curve);
+                return fallbackSum;
+            }
+
+            double sum = 0.0;
+            foreach (var region in planarRegions)
+            {
+                using (var properties = AreaMassProperties.Compute(region))
+                {
+                    if (properties != null)
+                        sum += properties.Area;
+                }
+            }
+            return sum;
         }
 
         /// <summary>
@@ -85,6 +141,12 @@ namespace Mycelium.Core
         /// Falls back to the footprint if Rhino's boolean intersection fails
         /// (for example due to coincident edges).
         /// </summary>
+        /// <remarks>
+        /// The fallback returns the UNTRIMMED input, which may extend past the buildable area
+        /// and violate the requested setback. Each fallback increments
+        /// <see cref="BooleanFallbackCount"/> so a case can be quarantined rather than silently
+        /// accepted.
+        /// </remarks>
         public static Curve[] SafeBooleanIntersection(Curve curve, Curve buildable, double tolerance = 0.001)
         {
             if (curve == null || buildable == null)
@@ -94,6 +156,7 @@ namespace Mycelium.Core
             if (result != null && result.Length > 0)
                 return result;
 
+            _booleanFallbackCount++;
             return new Curve[] { curve };
         }
 

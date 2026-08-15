@@ -4,43 +4,6 @@ using Rhino.Geometry;
 
 namespace Mycelium.Core
 {
-    public enum StreetNetworkType
-    {
-        IrregularGrid = 0,
-        OrthogonalGrid = 1,
-        DiagonalGrid = 2,
-        RadialConcentricGrid = 3
-    }
-
-    public enum OrthogonalGridType
-    {
-        Regular = 0,
-        Rectangular = 1,
-        Cerda = 2,
-        HierarchicalSuperblock = 3
-    }
-
-    public enum IrregularGridType
-    {
-        RecursiveOrthogonal = 0,
-        DeformedGrid = 1,
-        StaggeredGrid = 2
-    }
-
-    public enum DiagonalGridType
-    {
-        SingleAxis = 0,
-        CrossAxes = 1,
-        OrthogonalOverlay = 2
-    }
-
-    public enum RadialConcentricGridType
-    {
-        CivicCore = 0,
-        PolygonalRadial = 1,
-        FanPlan = 2
-    }
-
     /// <summary>
     /// Creates buildable parcels whose gaps form a selected street-network pattern.
     /// </summary>
@@ -526,8 +489,61 @@ namespace Mycelium.Core
             var cell = polygonal
                 ? PolygonalAnnularSector(center, inner, outer, start, end, streetWidth)
                 : AnnularSector(center, inner, outer, start, end, streetWidth);
+
+            // A sector narrower than the street gaps it must absorb has no interior left.
+            if (cell == null)
+                return;
+
             cell.Transform(toWorld);
             AddIntersections(boundary, cell, result);
+        }
+
+        /// <summary>
+        /// Half-angle subtended at <paramref name="radius"/> by half of a street of the given
+        /// width, clamped to a valid arcsine domain.
+        /// </summary>
+        private static double SectorGapAngle(double radius, double streetWidth)
+        {
+            if (radius <= Tolerance)
+                return 0.0;
+            return Math.Asin(Math.Min(0.95, streetWidth / (2.0 * radius)));
+        }
+
+        /// <summary>
+        /// True when the street gaps consume the whole angular span, which would fold the sector
+        /// polyline into a self-intersecting bow tie. Such a cell is still closed and still
+        /// reports a positive area, so it has to be rejected before it reaches the parcel list.
+        /// </summary>
+        private static bool SectorCollapses(double inner, double outer, double start, double end,
+            double streetWidth, out double innerGap, out double outerGap)
+        {
+            innerGap = SectorGapAngle(inner, streetWidth);
+            outerGap = SectorGapAngle(outer, streetWidth);
+            double span = end - start;
+            return span <= 2.0 * Math.Max(innerGap, outerGap) + Tolerance;
+        }
+
+        /// <summary>
+        /// Arc segment count chosen so the chord deviates from the true arc by less than the
+        /// working tolerance, bounded to keep parcel curves light. A fixed count would leave a
+        /// large ring visibly faceted and a small ring needlessly dense.
+        /// </summary>
+        private static int ArcSampleCount(double radius, double sweep)
+        {
+            if (radius <= Tolerance || sweep <= 0.0)
+                return 1;
+
+            // Sagitta of a chord spanning angle t is r * (1 - cos(t/2)); solve for t at Tolerance.
+            double ratio = 1.0 - Tolerance / radius;
+            if (ratio <= -1.0 || ratio >= 1.0)
+                return 1;
+
+            double maxSweepPerSegment = 2.0 * Math.Acos(ratio);
+            if (maxSweepPerSegment <= 0.0)
+                return 64;
+
+            int samples = (int)Math.Ceiling(sweep / maxSweepPerSegment);
+            return Math.Max(2, Math.Min(64, samples));
         }
 
         private static void GetLocalBoundary(Curve boundary, out Plane plane, out Curve local,
@@ -601,25 +617,31 @@ namespace Mycelium.Core
         private static Curve AnnularSector(Point3d center, double inner, double outer,
             double start, double end, double streetWidth)
         {
-            const int samples = 8;
+            if (SectorCollapses(inner, outer, start, end, streetWidth, out double innerGap, out double outerGap))
+                return null;
+
             var points = new List<Point3d>();
-            double innerGap = Math.Asin(Math.Min(0.95, streetWidth / (2.0 * inner)));
-            double outerGap = Math.Asin(Math.Min(0.95, streetWidth / (2.0 * outer)));
             double innerStart = start + innerGap;
             double innerEnd = end - innerGap;
             double outerStart = start + outerGap;
             double outerEnd = end - outerGap;
 
             if (inner <= Tolerance)
+            {
                 points.Add(center);
+            }
             else
-                for (int i = 0; i <= samples; i++)
+            {
+                int innerSamples = ArcSampleCount(inner, innerEnd - innerStart);
+                for (int i = 0; i <= innerSamples; i++)
                     points.Add(Polar(center, inner,
-                        innerStart + (innerEnd - innerStart) * i / samples));
+                        innerStart + (innerEnd - innerStart) * i / innerSamples));
+            }
 
-            for (int i = samples; i >= 0; i--)
+            int outerSamples = ArcSampleCount(outer, outerEnd - outerStart);
+            for (int i = outerSamples; i >= 0; i--)
                 points.Add(Polar(center, outer,
-                    outerStart + (outerEnd - outerStart) * i / samples));
+                    outerStart + (outerEnd - outerStart) * i / outerSamples));
             points.Add(points[0]);
             return new Polyline(points).ToNurbsCurve();
         }
@@ -627,8 +649,9 @@ namespace Mycelium.Core
         private static Curve PolygonalAnnularSector(Point3d center, double inner,
             double outer, double start, double end, double streetWidth)
         {
-            double innerGap = Math.Asin(Math.Min(0.95, streetWidth / (2.0 * inner)));
-            double outerGap = Math.Asin(Math.Min(0.95, streetWidth / (2.0 * outer)));
+            if (SectorCollapses(inner, outer, start, end, streetWidth, out double innerGap, out double outerGap))
+                return null;
+
             var points = new[]
             {
                 Polar(center, inner, start + innerGap),

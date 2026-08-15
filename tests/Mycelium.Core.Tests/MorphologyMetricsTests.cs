@@ -20,6 +20,38 @@ namespace Mycelium.Core.Tests
         }
 
         [Fact]
+        public void WeightedHeightStatistics_FollowPlanArea()
+        {
+            // One large low block and one small tower. Unweighted statistics treat them equally;
+            // plan-area weighting must pull the mean toward the block that covers more ground.
+            var entries = new[]
+            {
+                new MorphologyMetrics.WeightedHeight(10.0, 900.0),
+                new MorphologyMetrics.WeightedHeight(50.0, 100.0)
+            };
+
+            var weighted = MorphologyMetrics.CalculateWeightedHeightStatistics(entries);
+            var unweighted = MorphologyMetrics.CalculateHeightStatistics(new[] { 10.0, 50.0 });
+
+            Assert.Equal(14.0, weighted.Mean, 8);
+            Assert.Equal(30.0, unweighted.Mean, 8);
+            Assert.Equal(12.0, weighted.StandardDeviation, 8);
+            Assert.True(weighted.StandardDeviation < unweighted.StandardDeviation);
+        }
+
+        [Fact]
+        public void WeightedHeightStatistics_FallBackWhenNoPlanAreaIsAvailable()
+        {
+            var entries = new[]
+            {
+                new MorphologyMetrics.WeightedHeight(10.0, 0.0),
+                new MorphologyMetrics.WeightedHeight(20.0, 0.0)
+            };
+
+            Assert.Equal(15.0, MorphologyMetrics.CalculateWeightedHeightStatistics(entries).Mean, 8);
+        }
+
+        [Fact]
         public void CaseManifest_UsesStableCamelCaseSchema()
         {
             var manifest = new CaseManifest

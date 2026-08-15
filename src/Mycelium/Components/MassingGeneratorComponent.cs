@@ -55,10 +55,16 @@ namespace Mycelium.Components
             pManager.AddVectorParameter("AnalysisDirection", "Dir",
                 "Horizontal analysis direction for directional frontal area density (lambda_f)",
                 GH_ParamAccess.item, Vector3d.XAxis);
+            pManager.AddTextParameter("StreetNetwork", "Net",
+                "Street network sub-option, e.g. \"Orthogonal/Cerda\" or \"Fan Plan\". " +
+                "Overrides the context-menu selection so a batch campaign can sweep the network " +
+                "families as an ordinary parameter. Leave empty to use the menu selection.",
+                GH_ParamAccess.item);
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
             pManager[9].Optional = true; // AnalysisDirection
+            pManager[10].Optional = true; // StreetNetwork
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -93,6 +99,7 @@ namespace Mycelium.Components
             string treeConfigRaw = null;
             int seed = 0;
             Vector3d analysisDirection = Vector3d.XAxis;
+            string streetNetworkRaw = null;
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref floorHeight);
@@ -104,6 +111,24 @@ namespace Mycelium.Components
             bool hasTreeConfig = DA.GetData(7, ref treeConfigRaw);
             DA.GetData(8, ref seed);
             DA.GetData(9, ref analysisDirection);
+            DA.GetData(10, ref streetNetworkRaw);
+
+            // The wired sub-option wins over the context menu so a batch sweep needs no menu
+            // interaction; the menu selection remains the default when the input is empty.
+            var network = CurrentNetworkSelection();
+            if (!string.IsNullOrWhiteSpace(streetNetworkRaw))
+            {
+                if (StreetNetworkSelection.TryParse(streetNetworkRaw, out var parsedNetwork))
+                {
+                    network = parsedNetwork;
+                }
+                else
+                {
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        $"Unknown street network '{streetNetworkRaw}'. Using the menu selection. " +
+                        $"Valid names: {string.Join(", ", StreetNetworkSelection.CanonicalNames)}");
+                }
+            }
 
             // Tree configuration (optional input, defaults otherwise)
             var treeConfig = TreeConfig.Default;
@@ -135,6 +160,9 @@ namespace Mycelium.Components
 
             var rng = new Random(seed);
 
+            // Boolean fallbacks are counted for this solve so the manifest can report them.
+            GeometryHelpers.ResetBooleanFallbackCount();
+
             var footprints = new List<Curve>();
             var masses = new List<Brep>();
             var heights = new List<double>();
@@ -147,8 +175,8 @@ namespace Mycelium.Components
 
             // 1. Subdivide the boundary into parcels separated by streets
             var allParcels = ParcelSubdivision.Subdivide(boundary, divisions, globalMinArea,
-                streetWidth, rng, _networkType, _orthogonalGridType, _irregularGridType,
-                _diagonalGridType, _radialGridType);
+                streetWidth, rng, network.Family, network.Orthogonal, network.Irregular,
+                network.Diagonal, network.Radial);
 
             // 2. Streets are the leftover space between boundary and parcels
             var streetsDiff = Curve.CreateBooleanDifference(boundary, allParcels.ToArray(), 0.001);
@@ -192,13 +220,17 @@ namespace Mycelium.Components
                 {
                     Seed = seed,
                     ModelUnits = CaseManifest.ActiveModelUnits(),
+                    ModelAbsoluteTolerance = CaseManifest.ActiveModelAbsoluteTolerance(),
+                    BoundaryDigest = BoundaryCanonicalizer.Digest(boundary),
+                    BoundaryCanonicalTolerance = BoundaryCanonicalizer.DefaultTolerance,
+                    BoundaryCanonicalDecimals = BoundaryCanonicalizer.DefaultDecimals,
                     FloorHeight = floorHeight,
                     Divisions = divisions,
                     StreetWidth = streetWidth,
                     RequestedParks = numParks,
                     GenerateFloorSlabs = generateFloorSlabs,
-                    StreetNetworkFamily = NetworkTypeLabel(_networkType),
-                    StreetNetworkSubtype = CurrentNetworkLabel(),
+                    StreetNetworkFamily = NetworkTypeLabel(network.Family),
+                    StreetNetworkSubtype = network.ToCanonicalName(),
                     BuildingConfigurations = allowedConfigs.Select(config => config.Serialize()).ToArray(),
                     TreeConfiguration = treeConfig.Serialize(),
                     TreeConfigurationProvided = hasTreeConfig,
@@ -217,12 +249,28 @@ namespace Mycelium.Components
                     Parks = parks.Count,
                     Courtyards = courtyards.Count,
                     Trees = trees.Count,
-                    Parcels = parcels.Count
+                    Parcels = parcels.Count,
+                    BooleanFallbacks = GeometryHelpers.BooleanFallbackCount
                 },
                 Development = development,
                 Morphology = morphology
             };
             manifest.CaseId = manifest.CalculateCaseId();
+
+            if (manifest.Parameters.BoundaryDigest == null)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    "Could not canonicalize the boundary, so the case identifier does not " +
+                    "distinguish this site from another with the same parameters.");
+            }
+
+            if (manifest.Geometry.BooleanFallbacks > 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    $"{manifest.Geometry.BooleanFallbacks} boolean intersection(s) failed and kept " +
+                    "an untrimmed footprint. Those buildings may extend past their setback; the " +
+                    "count is recorded in the case manifest.");
+            }
 
             DA.SetDataList(0, footprints);
             DA.SetDataList(1, masses);
@@ -393,6 +441,19 @@ namespace Mycelium.Components
 
             Message = CurrentNetworkLabel();
             return base.Read(reader);
+        }
+
+        /// <summary>The context-menu selection, as a value the core generator can consume.</summary>
+        private StreetNetworkSelection CurrentNetworkSelection()
+        {
+            return new StreetNetworkSelection
+            {
+                Family = _networkType,
+                Orthogonal = _orthogonalGridType,
+                Irregular = _irregularGridType,
+                Diagonal = _diagonalGridType,
+                Radial = _radialGridType
+            };
         }
 
         private string CurrentNetworkLabel()
@@ -576,9 +637,11 @@ namespace Mycelium.Components
 
             masses.AddRange(GeometryHelpers.ExtrudeFootprints(blockFootprints, height));
 
-            double footprintArea = 0.0;
-            foreach (var fp in blockFootprints)
-                footprintArea += GeometryHelpers.GetCurveArea(fp);
+            // Region area, not a per-curve sum: a perimeter block is returned as an outer curve
+            // plus a courtyard curve, and summing both would add the void to the floor area.
+            // This is the same measure that feeds plan area density, so the two agree by
+            // construction.
+            double footprintArea = GeometryHelpers.GetRegionArea(blockFootprints);
 
             if (generateFloorSlabs)
                 AddFloorSlabs(blockFootprints, avgFloors, floorHeight, floorSlabs);
