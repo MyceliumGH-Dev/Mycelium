@@ -68,7 +68,9 @@ in the engine must fail the build on any path outside that box.
 Round caps, round joins. Ink is **pine `#29473A`**.
 
 **Fill.** White for built volume, with grey shaded faces where a mass needs a readable
-third dimension. The family accent fills what grows, flows, or is ground.
+third dimension. The family accent fills what grows, flows, or is ground. The assembly
+mark is the sole monochrome exception: near-black `#202020` and white only, so the brand
+remains clear at favicon, website, and Grasshopper ribbon sizes.
 
 **Tinting.** A filled detail narrower than about 3.5 units gets stroked in its own colour
 instead of ink — a 1.25 contour on both sides would eat it.
@@ -142,7 +144,7 @@ Vegetation / Site / Utilities).
 
 | Glyph | Component | Family | Intent |
 | --- | --- | --- | --- |
-| `Mycelium` | assembly mark (`MyceliumInfo.Icon`) | built | The brand mark — rising skyline on mycelial roots. Must be legible at 16 px in the ribbon tab and share **no** silhouette with `MyceliumMassing`. Give it the roots; give Massing something else. |
+| `Mycelium` | assembly mark (`MyceliumInfo.Icon`) | built | The brand mark — a compact low-/mid-rise urban morphology connected to Grasshopper-like mycelial data wires and endpoint nodes. It is strictly monochrome, must be legible at 16 px in the ribbon tab, and shares **no** silhouette with `MyceliumMassing`. |
 | `MyceliumMassing` | Massing Generator | ground | The generator, not the result: a parcel field being subdivided and extruded. Suggest plan-to-mass — subdivided footprints at the base, one or two masses risen. `grid` badge. |
 | `MyceliumCourtyard` | Courtyard Config | built | Isometric ring of mass around a void. The void is the subject; keep it wide enough to survive 24 px. `gear` badge. |
 | `MyceliumLinear` | Linear Config | built | One long isometric bar, clearly longer than it is deep. `gear` badge. |

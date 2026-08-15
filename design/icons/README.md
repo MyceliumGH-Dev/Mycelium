@@ -33,7 +33,7 @@ MYC.sprite();                 // <symbol> sheet
 | --- | --- |
 | Space | 24 x 24 units, `viewBox="0 0 24 24"`, all art inside `0.7 .. 23.3`. `V.glyph` throws on any path outside the box; there is no exceptions list. |
 | Stroke | `1.25` every contour, `0.85` interior hairlines only (floor plates, parcel divisions, contour lines, branch veins). Round caps, round joins. |
-| Ink | pine `#29473A`. |
+| Ink | pine `#29473A`; the assembly mark alone uses monochrome `#202020`. |
 | Fill | White for built volume; `shadeA #E7EAE8` / `shadeB #C9D1CD` for the two visible side faces (pine over white at 12% / 26% — derived neutrals, not brand colours). The family accent fills what grows, flows, or is ground. |
 | Tinting | A filled detail narrower than `3.5` units is stroked in its own colour, not ink. Hairlines drawn on top of an accent fill are cream, not ink. |
 | Effects | None. |

@@ -9,25 +9,41 @@
   /* ---- assembly mark -------------------------------------------------- */
   def({
     name: 'Mycelium', component: 'MyceliumInfo (assembly mark)', panel: '—',
-    family: 'built', motif: 'mass + roots', badge: null,
-    note: 'Rising skyline on mycelial roots. No badge, no parcel field — shares no silhouette with MyceliumMassing.',
+    family: 'built', motif: 'urban field + data roots', badge: null,
+    note: 'A compact urban morphology connected by Grasshopper-like mycelial data wires. Monochrome and distinct from MyceliumMassing.',
     draw: function (k) {
-      var p = k.iso(9.4, 6.9), s = [];
-      s = s.concat(k.M.plate(p, k.rect(-0.5, -0.5, 9.5, 3.5), 0.55, {}));
+      var ink = '#202020', p = k.iso(12.0, 6.0), s = [];
+      s = s.concat(k.M.plate(p, k.rect(0, 0, 8.0, 8.0), 0.55,
+        { ink: ink, fill: k.PAL.white, wall: ink }));
       var d = p.lift(0.55);
-      [[0, 3.0, 3.6], [3.0, 6.0, 6.4], [6.0, 9.0, 4.8]].forEach(function (b) {
-        s = s.concat(k.M.mass(d, k.rect(b[0], 0, b[1], 3.0), b[2], {}));
+      [
+        [0.4, 0.5, 2.7, 2.7, 2.2],
+        [3.1, 0.5, 5.4, 2.4, 3.7],
+        [5.8, 0.5, 7.6, 2.8, 2.6],
+        [0.5, 3.3, 2.4, 5.7, 3.0],
+        [3.0, 3.0, 5.1, 5.1, 2.0],
+        [5.6, 3.4, 7.5, 5.7, 3.2],
+        [2.0, 6.0, 4.4, 7.5, 2.3]
+      ].forEach(function (b) {
+        s = s.concat(k.M.mass(d, k.rect(b[0], b[1], b[2], b[3]), b[4],
+          { ink: ink, wall: ink, top: k.PAL.white }));
       });
-      return s.concat(k.M.roots([
-        [[7.4, 9.2], [5.6, 11.0], [3.8, 12.4], [2.8, 14.6]],
-        [[6.3, 11.4], [5.2, 13.0], [4.4, 14.8], [4.4, 17.0]],
-        [[9.0, 10.1], [7.6, 12.6], [6.0, 14.4], [5.4, 17.4]],
-        [[10.9, 11.2], [10.2, 14.0], [9.2, 16.4], [9.4, 19.4]],
-        [[12.8, 12.3], [12.9, 15.2], [12.6, 17.8], [12.8, 20.4]],
-        [[14.6, 13.4], [15.6, 15.6], [16.2, 17.4], [16.0, 19.6]],
-        [[15.2, 16.4], [16.8, 17.2], [17.8, 18.2], [18.2, 19.6]],
-        [[16.3, 12.4], [18.0, 14.0], [19.4, 15.2], [20.6, 16.8]]
-      ]));
+
+      var wires = [
+        [[12.0, 14.0], [10.0, 15.1], [7.7, 15.4], [5.2, 15.0]],
+        [[12.0, 14.0], [9.4, 16.0], [7.1, 17.1], [5.4, 18.8]],
+        [[12.0, 14.0], [11.0, 16.4], [9.8, 18.2], [9.4, 20.5]],
+        [[12.0, 14.0], [12.0, 16.7], [12.2, 19.1], [12.4, 21.6]],
+        [[12.0, 14.0], [13.2, 16.1], [15.1, 17.0], [16.7, 18.7]],
+        [[12.0, 14.0], [14.6, 15.2], [17.2, 15.1], [19.5, 14.7]]
+      ];
+      s = s.concat(k.M.roots(wires, { ink: ink }));
+      [[5.2, 15.0], [5.4, 18.8], [9.4, 20.5], [12.4, 21.6], [16.7, 18.7], [19.5, 14.7]].forEach(function (n) {
+        s.push(k.disc(n[0], n[1], 0.72, { fill: k.PAL.white, stroke: ink, w: k.W.hair }));
+      });
+      s.push(k.disc(8.1, 16.6, 0.46, { fill: ink }));
+      s.push(k.disc(15.0, 16.7, 0.46, { fill: ink }));
+      return s;
     }
   });
 
