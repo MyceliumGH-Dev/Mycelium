@@ -2,14 +2,17 @@
 
   <PropertyGroup>
     <!--
-      Rhino 8 runs Grasshopper on .NET 7. The TFM is PLAIN net7.0, never net7.0-windows:
-      a -windows TFM binds the Windows Desktop framework (System.Windows.Forms 7.0.0.0,
-      System.Drawing.Common from the WindowsDesktop pack), and macOS has no WindowsDesktop
-      runtime pack — Rhino simply fails to load the .gha and the plugin never shows up in
-      Grasshopper, with nothing on screen to say why. Grasshopper's API still hands us WinForms
-      types (ToolStripDropDown in the menu overrides), so those come from the net48 reference
-      assembly below, which is the 4.0.0.0 identity Rhino satisfies on BOTH platforms
-      (macOS: RhCore.framework ships its own System.Windows.Forms.dll).
+      Rhino 8 runs Grasshopper on .NET 7. The TFM is PLAIN net7.0 rather than net7.0-windows, so
+      the assembly declares no dependency on the Windows Desktop framework and no windows-only
+      platform surface — the same shape Eddy3D's Grasshopper plugins ship. Grasshopper's API still
+      hands us WinForms types (ToolStripDropDown in the menu overrides), so those come from the
+      net48 reference assembly below: compile-time only, resolved by Rhino at run time, which on
+      macOS means RhCore.framework's own System.Windows.Forms.dll.
+
+      Measured, not assumed: a net7.0-windows build DOES load in Rhino 8.32 for Mac (verified
+      against the 0.1.0.4 Yak package with a live rhinocode probe, 2026-08-16) — Rhino satisfies
+      those references itself. This is about not carrying a Windows-desktop dependency we never
+      needed, and about dialogs going through Eto, which behaves the same on both platforms.
     -->
     <TargetFramework>net7.0</TargetFramework>
     <LangVersion>latest</LangVersion>

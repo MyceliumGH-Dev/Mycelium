@@ -109,7 +109,7 @@ dotnet build Mycelium.sln -c Release
 # → src/Mycelium/bin/Release/net7.0/Mycelium.gha
 ```
 
-The project targets plain `net7.0` and builds on Windows, macOS, and Linux. It is deliberately **not** `net7.0-windows`: that TFM binds the Windows Desktop framework, which has no macOS runtime pack, so the `.gha` silently fails to load in Rhino for Mac. Grasshopper's API still hands components WinForms types, so `System.Windows.Forms` is referenced compile-time-only from the .NET Framework 4.8 reference assemblies — the identity Rhino satisfies on both platforms. The Grasshopper NuGet package likewise ships .NET Framework reference assemblies and Rhino supplies the real ones at run time, so the NU1701 restore warning is suppressed intentionally.
+The project targets plain `net7.0` and builds on Windows, macOS, and Linux — deliberately not `net7.0-windows`, so the assembly carries no Windows Desktop framework dependency. Grasshopper's API still hands components WinForms types, so `System.Windows.Forms` is referenced compile-time-only from the .NET Framework 4.8 reference assemblies, the identity Rhino satisfies on both platforms; dialogs go through Eto for the same reason. (A `net7.0-windows` build does load in Rhino for Mac — that was measured, not assumed — this is about not depending on a stack we never needed.) The Grasshopper NuGet package likewise ships .NET Framework reference assemblies and Rhino supplies the real ones at run time, so the NU1701 restore warning is suppressed intentionally.
 
 </details>
 
