@@ -41,9 +41,8 @@ Every output is driven by a random seed, so alternatives are fully reproducible.
 
 ### Via the Package Manager (recommended)
 
-1. In Rhino 8, run the `_PackageManager` command.
-2. Search for **mycelium**.
-3. Install and restart Rhino.
+1. Click _Install in Rhino_ [here](https://rhinopackages.github.io/?search=mycelium&p=Mycelium).
+3. Restart Rhino.
 
 Components appear in Grasshopper under the **Mycelium** tab.
 
