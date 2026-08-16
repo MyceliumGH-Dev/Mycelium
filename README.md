@@ -89,6 +89,12 @@ Drop a **Mycelium Templates** component on the canvas and click **Select Templat
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 
+## Staying up to date
+
+Mycelium asks the Yak package registry once a day whether a newer version is published, and surfaces it in two places: a dismissible notice on the first Grasshopper canvas of a session, and an amber badge on the **Mycelium Templates** component (click it to open the Rhino Package Manager). The notice offers *Skip This Version* and *Never Remind Me Again*; both are remembered in `%AppData%/Mycelium/update-check.json` (delete that file to re-enable reminders). Right-click the templates component for **Check for Mycelium Updates Now**, which bypasses the daily throttle and any opt-out.
+
+Offers follow the channel you are on: a stable install is never nudged towards a pre-release, while a `-beta` install is offered whichever is newer, the next beta or the stable that supersedes it. Every part of the check fails silently — being offline never blocks Grasshopper or shows an error.
+
 ## Development
 
 <details>
