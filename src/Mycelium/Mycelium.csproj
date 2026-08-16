@@ -1,10 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Rhino 8 runs Grasshopper on .NET 7. EnableWindowsTargeting allows building on macOS/Linux. -->
-    <TargetFramework>net7.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--
+      Rhino 8 runs Grasshopper on .NET 7. The TFM is PLAIN net7.0, never net7.0-windows:
+      a -windows TFM binds the Windows Desktop framework (System.Windows.Forms 7.0.0.0,
+      System.Drawing.Common from the WindowsDesktop pack), and macOS has no WindowsDesktop
+      runtime pack — Rhino simply fails to load the .gha and the plugin never shows up in
+      Grasshopper, with nothing on screen to say why. Grasshopper's API still hands us WinForms
+      types (ToolStripDropDown in the menu overrides), so those come from the net48 reference
+      assembly below, which is the 4.0.0.0 identity Rhino satisfies on BOTH platforms
+      (macOS: RhCore.framework ships its own System.Windows.Forms.dll).
+    -->
+    <TargetFramework>net7.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <TargetExt>.gha</TargetExt>
@@ -26,16 +33,51 @@
     <RepositoryUrl>https://github.com/MyceliumGH-Dev/Mycelium</RepositoryUrl>
     <!-- NU1701: the Grasshopper/RhinoCommon packages ship net48 reference assemblies;
          Rhino 8 provides the real .NET 7 assemblies at run time (McNeel's documented setup). -->
-    <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <!-- CA1416: System.Drawing/WinForms are flagged windows-only on a cross-platform TFM.
+         Rhino hosts both stacks on macOS as well, which is the whole point of the plain TFM. -->
+    <NoWarn>$(NoWarn);NU1701;CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- ExcludeAssets=runtime: Rhino provides these assemblies at run time; never ship them. -->
     <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+    <!-- Dialogs use Eto, not WinForms: Eto is the stack Rhino runs on macOS as well. -->
+    <PackageReference Include="Eto.Forms" Version="2.7.4" ExcludeAssets="runtime" />
+    <!-- Component icons are System.Drawing.Bitmap; on a plain net7.0 TFM that type needs an
+         explicit reference. Compile-time only — Rhino loads its own copy. -->
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile-time WinForms for the cross-platform TFM (mirrors Eddy3D's plugins): the net48
+         reference assembly, never shipped, resolved by Rhino at run time. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" ExcludeAssets="all" GeneratePathProperty="true" />
+    <Reference Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\System.Windows.Forms.dll" Private="False" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Icons\*.png" />
   </ItemGroup>
+
+  <!--
+    Local development loop: point Grasshopper at this build output instead of installing a yak
+    package. Grasshopper reads every *.ghlink in its Libraries folder as "also scan this folder",
+    so a build is picked up by the next Rhino start with no copy step.
+
+    Watch out for an INSTALLED yak Mycelium package: Grasshopper loads both folders, the package
+    usually wins on assembly identity, and the canvas then shows the RELEASED build while you are
+    editing the local one. Uninstall it in the Package Manager while developing.
+  -->
+  <Target Name="WriteGrasshopperGhLink" AfterTargets="AfterBuild" Condition="'$(MyceliumSkipGhLink)' != 'true'">
+    <PropertyGroup Condition="'$(OS)' == 'Windows_NT' And '$(APPDATA)' != ''">
+      <GhLinkDir>$(APPDATA)\Grasshopper\Libraries</GhLinkDir>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+      <GhLinkDir>$(HOME)/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (b45a29b1-4343-4035-989e-044e8580d9cf)/Libraries</GhLinkDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(GhLinkDir)" Condition="'$(GhLinkDir)' != ''" />
+    <WriteLinesToFile File="$(GhLinkDir)/Mycelium.ghlink" Lines="$(TargetDir)" Overwrite="true" Condition="'$(GhLinkDir)' != ''" />
+    <Message Importance="high" Text="ghlink -> $(GhLinkDir)/Mycelium.ghlink ($(TargetDir))" Condition="'$(GhLinkDir)' != ''" />
+  </Target>
 
 </Project>
