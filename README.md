@@ -33,7 +33,7 @@ Mycelium takes a closed parcel boundary curve and generates complete urban massi
 1. **Subdivision** — recursive binary space partitioning splits the parcel into building blocks separated by streets.
 2. **Typologies** — each block receives a randomly selected building type from the configurations you allow: courtyard (perimeter block), linear bar, point block, L-shape, U-shape, or tall tower.
 3. **Open space** — a chosen number of blocks become parks, populated with procedural trees; courtyards can receive trees too.
-4. **Metrics & provenance** — development metrics, environmental morphology indicators, and a versioned JSON case manifest for every generated alternative.
+4. **Metrics & reproduceability** — development metrics, environmental morphology indicators, and a versioned JSON case manifest for every generated alternative.
 
 Every output is driven by a random seed, so alternatives are fully reproducible.
 
