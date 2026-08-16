@@ -67,9 +67,17 @@ namespace Mycelium.Components
 
             if (comp != null)
             {
-                Color sourceColor = Owner.Locked ? Color.FromArgb(120, 120, 120)
+                // When a newer Mycelium is published, the source line becomes an amber "update
+                // available" badge that opens the Package Manager on click (surface A); otherwise
+                // it stays the template-source label.
+                var showUpdate = comp.PluginUpdateAvailable;
+                Color sourceColor = showUpdate ? Color.FromArgb(230, 150, 30)
+                                  : Owner.Locked ? Color.FromArgb(120, 120, 120)
                                   : _mouseOverSource ? Color.FromArgb(40, 40, 40)
                                   : Color.FromArgb(130, 130, 130);
+                var sourceText = showUpdate
+                    ? $"⬆ Mycelium {comp.LatestPluginVersion} available"
+                    : comp.TemplateSourceLabel;
 
                 using (var brush = new SolidBrush(sourceColor))
                 using (var format = new StringFormat
@@ -80,7 +88,7 @@ namespace Mycelium.Components
                     FormatFlags = StringFormatFlags.NoWrap,
                 })
                 {
-                    graphics.DrawString(comp.TemplateSourceLabel, GH_FontServer.Small, brush, SourceBounds, format);
+                    graphics.DrawString(sourceText, GH_FontServer.Small, brush, SourceBounds, format);
                 }
             }
         }
@@ -148,6 +156,13 @@ namespace Mycelium.Components
                 if (Owner.Locked) e.Text += "\n\n(Disabled)";
                 e.Icon = Owner.Icon_24x24;
             }
+            else if (SourceBounds.Contains(Point.Round(canvasLocation)) && comp != null && comp.PluginUpdateAvailable)
+            {
+                e.Title = "⬆ Mycelium Update Available";
+                e.Text = $"Mycelium {comp.LatestPluginVersion} is available on the Rhino Package Manager.\n\n" +
+                         "Click to open the Package Manager and update.";
+                e.Icon = Owner.Icon_24x24;
+            }
             else if (SourceBounds.Contains(Point.Round(canvasLocation)))
             {
                 e.Title = "Template Source";
@@ -185,7 +200,9 @@ namespace Mycelium.Components
             {
                 if (Owner is TemplateComponent comp)
                 {
-                    if (e.Button == MouseButtons.Left) comp.OpenLocalTemplateFolder();
+                    // The badge takes over the source line when a plugin update is available.
+                    if (e.Button == MouseButtons.Left && comp.PluginUpdateAvailable) comp.OpenPackageManager();
+                    else if (e.Button == MouseButtons.Left) comp.OpenLocalTemplateFolder();
                     else if (e.Button == MouseButtons.Right) comp.OpenGitHubRepository();
                     return GH_ObjectResponse.Handled;
                 }

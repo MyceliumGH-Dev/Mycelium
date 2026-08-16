@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$REPO_ROOT/src/Mycelium/bin/Release/net7.0-windows"
+OUT="$REPO_ROOT/src/Mycelium/bin/Release/net7.0"
 DIST="$REPO_ROOT/dist"
 
 # Version source of truth is the root manifest.yml (4-part X.Y.Z.W, same as CI).

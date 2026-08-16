@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- MyceliumUpdateCheck talks to the Yak registry over HttpClient; on net48 that type lives in
+         the framework's own System.Net.Http assembly, which has to be referenced explicitly. -->
+    <Reference Include="System.Net.Http" />
     <Reference Include="RhinoCommon">
       <HintPath>$(NuGetPackageRoot)rhinocommon\8.0.23304.9001\lib\net48\RhinoCommon.dll</HintPath>
       <Private>true</Private>
@@ -35,6 +38,7 @@
     <Compile Include="..\..\src\Mycelium\Core\GeometryHelpers.cs" Link="Core\GeometryHelpers.cs" />
     <Compile Include="..\..\src\Mycelium\Core\GreenNetworkGenerator.cs" Link="Core\GreenNetworkGenerator.cs" />
     <Compile Include="..\..\src\Mycelium\Core\MorphologyMetrics.cs" Link="Core\MorphologyMetrics.cs" />
+    <Compile Include="..\..\src\Mycelium\Core\MyceliumUpdateCheck.cs" Link="Core\MyceliumUpdateCheck.cs" />
     <Compile Include="..\..\src\Mycelium\Core\StreetNetworkSelection.cs" Link="Core\StreetNetworkSelection.cs" />
     <Compile Include="..\..\src\Mycelium\Core\StreetNetworkTypes.cs" Link="Core\StreetNetworkTypes.cs" />
     <Compile Include="..\..\src\Mycelium\Core\TreeGenerator.cs" Link="Core\TreeGenerator.cs" />

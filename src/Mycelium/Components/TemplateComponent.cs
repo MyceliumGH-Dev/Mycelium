@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -36,11 +35,8 @@ namespace Mycelium.Components
         /// </summary>
         private static string GetBranchFromVersion()
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-            if (version == null) return "main";
-
-            var result = version.ToString();
-            return string.IsNullOrWhiteSpace(result) ? "main" : result;
+            var version = MyceliumVersion.Current;
+            return string.IsNullOrWhiteSpace(version) ? "main" : version;
         }
 
         private TemplateCache _cache = new TemplateCache();
@@ -51,6 +47,14 @@ namespace Mycelium.Components
         public bool UpdateAvailable => _updateAvailable;
         private string _errorMessage;
         public string ErrorMessage => _errorMessage;
+
+        // Plugin-version update (surface A): a newer Mycelium published on Yak. Separate from the
+        // template update above. Populated once by a background, cached check.
+        private bool _pluginUpdateChecked;
+        private bool _pluginUpdateAvailable;
+        public bool PluginUpdateAvailable => _pluginUpdateAvailable;
+        private string _latestPluginVersion;
+        public string LatestPluginVersion => _latestPluginVersion;
 
         private readonly Dictionary<string, bool> _externalFetchStates = new Dictionary<string, bool>();
 
@@ -121,6 +125,17 @@ namespace Mycelium.Components
             {
                 CheckForUpdatesAsync();
             }
+
+            // Background check for a newer Mycelium on Yak (once per component; cached per session).
+            if (!_pluginUpdateChecked)
+            {
+                _pluginUpdateChecked = true;
+                CheckPluginUpdateAsync();
+            }
+
+            if (_pluginUpdateAvailable)
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Remark,
+                    $"Mycelium {_latestPluginVersion} is available - click the version label below or update via the Rhino Package Manager.");
 
             if (_updateAvailable)
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Remark, "Template update available - click 'Select Template' to sync.");
@@ -330,6 +345,79 @@ namespace Mycelium.Components
             }
         }
 
+        // --- Plugin update check (Yak) ---
+
+        /// <summary>
+        /// Silent background check: honours the "skip this version" / "never remind" opt-outs and the
+        /// 24h throttle, and never reports failures. Feeds the badge on the component's label.
+        /// </summary>
+        private async void CheckPluginUpdateAsync()
+        {
+            try
+            {
+                if (MyceliumUpdateCheck.IsNeverRemind()) return; // permanent opt-out silences both surfaces
+                var info = await MyceliumUpdateCheck.CheckAsync(MyceliumVersion.Current);
+                if (info != null && info.Available && !MyceliumUpdateCheck.IsSkipped(info.Latest))
+                {
+                    _latestPluginVersion = info.Latest;
+                    _pluginUpdateAvailable = true;
+                    Rhino.RhinoApp.InvokeOnUiThread((Action)(() => ExpireSolution(true)));
+                }
+            }
+            catch
+            {
+                // Background check: never surface errors.
+            }
+        }
+
+        /// <summary>
+        /// User-initiated "Check for Updates Now" (right-click menu): bypasses the session cache and
+        /// the 24h Yak throttle, and — because the user explicitly asked — also ignores the
+        /// "skip this version" / "never remind" opt-outs. Unlike the silent background check, the
+        /// outcome is always reported: update found, already up to date, or check failed.
+        /// </summary>
+        private async void ForcePluginUpdateCheckAsync()
+        {
+            try
+            {
+                var info = await MyceliumUpdateCheck.CheckAsync(MyceliumVersion.Current, force: true);
+                Rhino.RhinoApp.InvokeOnUiThread((Action)(() =>
+                {
+                    // Eto, not WinForms: the dialog stack Rhino runs on macOS as well.
+                    if (info != null && info.Available)
+                    {
+                        _latestPluginVersion = info.Latest;
+                        _pluginUpdateAvailable = true;
+                        Eto.Forms.MessageBox.Show(
+                            $"Mycelium {info.Latest}{(string.IsNullOrEmpty(info.LatestDate) ? "" : $" ({info.LatestDate})")} is available " +
+                            $"(installed: {info.Installed}).\n\nUpdate via the Rhino Package Manager.",
+                            "Mycelium Update Check", Eto.Forms.MessageBoxType.Information);
+                    }
+                    else if (info != null && !string.IsNullOrEmpty(info.Latest))
+                    {
+                        _pluginUpdateAvailable = false;
+                        Eto.Forms.MessageBox.Show(
+                            $"Mycelium is up to date ({info.Installed}). Latest on Yak: {info.Latest}.",
+                            "Mycelium Update Check", Eto.Forms.MessageBoxType.Information);
+                    }
+                    else
+                    {
+                        Eto.Forms.MessageBox.Show(
+                            "Could not reach the Yak package registry - check your internet connection and try again.",
+                            "Mycelium Update Check", Eto.Forms.MessageBoxType.Warning);
+                    }
+                    ExpireSolution(true);
+                }));
+            }
+            catch
+            {
+                // The check itself never throws (failures resolve to an empty Latest), but guard the UI hop.
+            }
+        }
+
+        /// <summary>Opens the Rhino Package Manager (falls back to the website) so the user can update Mycelium.</summary>
+        public void OpenPackageManager() => MyceliumUpdateNotifier.OpenPackageManager();
+
         private async void FetchExternalGithubFilesAsync(string inputUrl, GitHubInfo info)
         {
             if (_externalFetchStates.TryGetValue(inputUrl, out var isFetching) && isFetching) return;
@@ -382,7 +470,10 @@ namespace Mycelium.Components
 
         private async Task<bool> EnsureTemplateDownloadedAsync(string relPath)
         {
-            var localPath = Path.Combine(MainRepoDir, relPath);
+            // The cache mirrors the repo's folder layout: GitHub paths stay '/'-separated for the
+            // raw URL, the local copy takes the platform separator.
+            var githubPath = relPath.Replace('\\', '/');
+            var localPath = Path.Combine(MainRepoDir, githubPath.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(localPath)) return true;
 
             try
@@ -390,14 +481,14 @@ namespace Mycelium.Components
                 var localSubDir = Path.GetDirectoryName(localPath);
                 if (!Directory.Exists(localSubDir)) Directory.CreateDirectory(localSubDir);
 
-                await DownloadRawFileAsync(RepoOwner, RepoName, RepoBranch, relPath, localPath);
+                await DownloadRawFileAsync(RepoOwner, RepoName, RepoBranch, githubPath, localPath);
                 return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                Eto.Forms.MessageBox.Show(
                     $"Failed to download template: {ex.Message}\n\nPlease check your internet connection and try again.",
-                    "Template Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Template Download Error", Eto.Forms.MessageBoxType.Error);
                 return false;
             }
         }
@@ -442,9 +533,9 @@ namespace Mycelium.Components
             var io = new GH_DocumentIO();
             if (!io.Open(filePath))
             {
-                MessageBox.Show(
+                Eto.Forms.MessageBox.Show(
                     "Failed to open the template document. Please check if the file is valid and accessible.",
-                    "Template Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Template Load Error", Eto.Forms.MessageBoxType.Error);
                 return;
             }
 
@@ -523,31 +614,14 @@ namespace Mycelium.Components
                     menu.Items.Add(new ToolStripSeparator());
                 }
 
-                foreach (var file in _cache.Files)
-                {
-                    var fileName = Path.GetFileNameWithoutExtension(file);
-                    var localPath = Path.Combine(MainRepoDir, file);
-                    var isCached = File.Exists(localPath);
-                    var label = isCached ? "📄 " + fileName : "📄 " + fileName + " (Click to Download)";
-
-                    EventHandler onClick = async (s, e) =>
-                    {
-                        if (await EnsureTemplateDownloadedAsync(file))
-                        {
-                            InsertTemplate(localPath);
-                            ExpireSolution(true);
-                        }
-                    };
-
-                    var item = new ToolStripMenuItem(label, null, onClick)
-                    {
-                        ToolTipText = isCached
-                            ? $"Load cached template from: {localPath}"
-                            : $"Download template from GitHub and load it. Cached at: {localPath}"
-                    };
-                    menu.Items.Add(item);
-                }
+                AppendTemplateTree(menu.Items, _cache.Files);
             }
+
+            menu.Items.Add(new ToolStripSeparator());
+
+            var forceRefreshItem = Menu_AppendItem(menu, "🔄 Force Refresh Main List", (s, e) => RefreshTemplates());
+            if (forceRefreshItem != null)
+                forceRefreshItem.ToolTipText = "Clear the local template cache and fetch the latest template list from GitHub.";
 
             menu.Items.Add(new ToolStripSeparator());
 
@@ -556,6 +630,74 @@ namespace Mycelium.Components
 
             var viewRepoItem = Menu_AppendItem(menu, "🌐 View GitHub Repository", (s, e) => OpenGitHubRepository());
             if (viewRepoItem != null) viewRepoItem.ToolTipText = "Open the template repository in your default browser.";
+
+            menu.Items.Add(new ToolStripSeparator());
+
+            var checkUpdateItem = Menu_AppendItem(menu, "⬆ Check for Mycelium Updates Now", (s, e) => ForcePluginUpdateCheckAsync());
+            if (checkUpdateItem != null)
+                checkUpdateItem.ToolTipText =
+                    "Ask the Yak package registry for the latest published Mycelium version right now, " +
+                    "bypassing the daily throttle and any skipped-version setting.";
+        }
+
+        /// <summary>
+        /// Builds the picker from the repository's own folder hierarchy, so a growing template repo
+        /// stays navigable instead of turning into one long flat menu. GitHub paths use forward
+        /// slashes; both separators are normalized so older locally-written caches also work.
+        /// </summary>
+        private void AppendTemplateTree(
+            ToolStripItemCollection items,
+            IEnumerable<string> files,
+            string parentPath = "")
+        {
+            var normalizedFiles = files
+                .Where(file => !string.IsNullOrWhiteSpace(file))
+                .Select(file => file.Replace('\\', '/').TrimStart('/'))
+                .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var group in normalizedFiles
+                         .Where(file => file.Contains("/"))
+                         .GroupBy(file => file.Substring(0, file.IndexOf('/')), StringComparer.OrdinalIgnoreCase)
+                         .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var folderItem = new ToolStripMenuItem("📁 " + group.Key)
+                {
+                    ToolTipText = $"Templates in {group.Key}"
+                };
+                AppendTemplateTree(
+                    folderItem.DropDownItems,
+                    group.Select(file => file.Substring(file.IndexOf('/') + 1)),
+                    string.IsNullOrEmpty(parentPath) ? group.Key : parentPath + "/" + group.Key);
+                items.Add(folderItem);
+            }
+
+            foreach (var file in normalizedFiles
+                         .Where(file => !file.Contains("/"))
+                         .OrderBy(file => Path.GetFileNameWithoutExtension(file), StringComparer.OrdinalIgnoreCase))
+            {
+                var relativePath = string.IsNullOrEmpty(parentPath) ? file : parentPath + "/" + file;
+                var localPath = Path.Combine(MainRepoDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                var isCached = File.Exists(localPath);
+                var label = "📄 " + Path.GetFileNameWithoutExtension(file) +
+                            (isCached ? string.Empty : " (Click to Download)");
+
+                EventHandler onClick = async (s, e) =>
+                {
+                    if (await EnsureTemplateDownloadedAsync(relativePath))
+                    {
+                        InsertTemplate(localPath);
+                        ExpireSolution(true);
+                    }
+                };
+
+                items.Add(new ToolStripMenuItem(label, null, onClick)
+                {
+                    ToolTipText = isCached
+                        ? $"Load cached template from: {localPath}"
+                        : $"Download template from GitHub and load it. Cached at: {localPath}"
+                });
+            }
         }
     }
 }

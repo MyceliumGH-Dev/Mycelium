@@ -89,6 +89,12 @@ Drop a **Mycelium Templates** component on the canvas and click **Select Templat
 
 ![Algorithm overview](docs/images/algorithm.jpeg)
 
+## Staying up to date
+
+Mycelium asks the Yak package registry once a day whether a newer version is published, and surfaces it in two places: a dismissible notice on the first Grasshopper canvas of a session, and an amber badge on the **Mycelium Templates** component (click it to open the Rhino Package Manager). The notice offers *Skip This Version* and *Never Remind Me Again*; both are remembered in `%AppData%/Mycelium/update-check.json` (delete that file to re-enable reminders). Right-click the templates component for **Check for Mycelium Updates Now**, which bypasses the daily throttle and any opt-out.
+
+Offers follow the channel you are on: a stable install is never nudged towards a pre-release, while a `-beta` install is offered whichever is newer, the next beta or the stable that supersedes it. Every part of the check fails silently — being offline never blocks Grasshopper or shows an error.
+
 ## Development
 
 <details>
@@ -100,10 +106,26 @@ Requires the [.NET SDK](https://dotnet.microsoft.com/download) (8.0 or newer).
 git clone https://github.com/MyceliumGH-Dev/Mycelium.git
 cd Mycelium
 dotnet build Mycelium.sln -c Release
-# → src/Mycelium/bin/Release/net7.0-windows/Mycelium.gha
+# → src/Mycelium/bin/Release/net7.0/Mycelium.gha
 ```
 
-The project targets `net7.0-windows` and builds on Windows, macOS, and Linux (`EnableWindowsTargeting`). The Grasshopper NuGet package ships .NET Framework reference assemblies; Rhino 8 supplies the real .NET 7 assemblies at run time, so the NU1701 restore warning is suppressed intentionally.
+The project targets plain `net7.0` and builds on Windows, macOS, and Linux — deliberately not `net7.0-windows`, so the assembly carries no Windows Desktop framework dependency. Grasshopper's API still hands components WinForms types, so `System.Windows.Forms` is referenced compile-time-only from the .NET Framework 4.8 reference assemblies, the identity Rhino satisfies on both platforms; dialogs go through Eto for the same reason. (A `net7.0-windows` build does load in Rhino for Mac — that was measured, not assumed — this is about not depending on a stack we never needed.) The Grasshopper NuGet package likewise ships .NET Framework reference assemblies and Rhino supplies the real ones at run time, so the NU1701 restore warning is suppressed intentionally.
+
+</details>
+
+<details>
+<summary><b>Local development loop (.ghlink)</b></summary>
+
+Every build writes a `Mycelium.ghlink` file into Grasshopper's Libraries folder pointing at the build output, so Grasshopper loads the freshly built `.gha` on the next Rhino start — no copying, no packaging:
+
+| Platform | ghlink location |
+|---|---|
+| Windows | `%APPDATA%\Grasshopper\Libraries\Mycelium.ghlink` |
+| macOS | `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (b45a29b1-4343-4035-989e-044e8580d9cf)/Libraries/Mycelium.ghlink` |
+
+Set `-p:MyceliumSkipGhLink=true` to suppress it (CI does not need it).
+
+**Uninstall the released Mycelium package while developing.** If a Yak package is installed, Grasshopper loads that folder too, the released assembly usually wins on identity, and the canvas quietly shows the *released* components while you are editing the local ones. Rhino restarts are required for either to be picked up — Grasshopper caches its library scan for the session.
 
 </details>
 
