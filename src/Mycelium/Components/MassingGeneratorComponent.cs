@@ -60,11 +60,13 @@ namespace Mycelium.Components
                 "Overrides the context-menu selection so a batch campaign can sweep the network " +
                 "families as an ordinary parameter. Leave empty to use the menu selection.",
                 GH_ParamAccess.item);
+            pManager.AddBrepParameter("Terrain", "Ter", "Optional terrain surface for 3D massing and site integration", GH_ParamAccess.item);
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
             pManager[9].Optional = true; // AnalysisDirection
             pManager[10].Optional = true; // StreetNetwork
+            pManager[11].Optional = true; // Terrain
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -100,6 +102,7 @@ namespace Mycelium.Components
             int seed = 0;
             Vector3d analysisDirection = Vector3d.XAxis;
             string streetNetworkRaw = null;
+            Brep terrain = null;
 
             if (!DA.GetData(0, ref boundary)) return;
             DA.GetData(1, ref floorHeight);
@@ -112,6 +115,7 @@ namespace Mycelium.Components
             DA.GetData(8, ref seed);
             DA.GetData(9, ref analysisDirection);
             DA.GetData(10, ref streetNetworkRaw);
+            DA.GetData(11, ref terrain);
 
             // The wired sub-option wins over the context menu so a batch sweep needs no menu
             // interaction; the menu selection remains the default when the input is empty.
@@ -181,7 +185,12 @@ namespace Mycelium.Components
             // 2. Streets are the leftover space between boundary and parcels
             var streetsDiff = Curve.CreateBooleanDifference(boundary, allParcels.ToArray(), 0.001);
             if (streetsDiff != null)
-                streets.AddRange(streetsDiff);
+            {
+                if (terrain != null)
+                    streets.AddRange(TerrainMassingHelpers.ProjectCurvesToTerrain(streetsDiff, terrain));
+                else
+                    streets.AddRange(streetsDiff);
+            }
 
             // 3. Randomly select park parcels (partial Fisher-Yates shuffle)
             var parkIndices = SelectParkIndices(allParcels.Count, numParks, rng);
@@ -195,15 +204,29 @@ namespace Mycelium.Components
 
                 if (parkIndices.Contains(i))
                 {
-                    parks.Add(parcelCurve);
-                    trees.AddRange(TreeGenerator.GenerateTrees(parcelCurve, rng,
-                        treeConfig.DensityPercent, treeConfig.MinDiameter, treeConfig.MaxDiameter));
+                    if (terrain != null)
+                        parks.AddRange(TerrainMassingHelpers.ProjectCurvesToTerrain(new[] { parcelCurve }, terrain));
+                    else
+                        parks.Add(parcelCurve);
+
+                    var rawTrees = TreeGenerator.GenerateTrees(parcelCurve, rng,
+                        treeConfig.DensityPercent, treeConfig.MinDiameter, treeConfig.MaxDiameter);
+
+                    if (terrain != null)
+                        trees.AddRange(TerrainMassingHelpers.AnchorTreesToTerrain(rawTrees, terrain));
+                    else
+                        trees.AddRange(rawTrees);
+
                     continue;
                 }
 
-                parcels.Add(parcelCurve);
+                if (terrain != null)
+                    parcels.AddRange(TerrainMassingHelpers.ProjectCurvesToTerrain(new[] { parcelCurve }, terrain));
+                else
+                    parcels.Add(parcelCurve);
+
                 totalGFA += GenerateParcelBuildings(parcelCurve, allowedConfigs, rng, floorHeight,
-                    generateFloorSlabs, hasTreeConfig, treeConfig,
+                    generateFloorSlabs, hasTreeConfig, treeConfig, terrain,
                     footprints, masses, heights, floorSlabs, courtyards, trees);
             }
 
@@ -568,12 +591,11 @@ namespace Mycelium.Components
         }
 
         /// <summary>
-        /// Generates the building on one parcel: picks a random allowed typology, creates its
-        /// footprint, extrudes the mass, and optionally adds floor slabs and courtyard trees.
-        /// Returns the gross floor area contributed by this parcel.
+        /// Generates the building on one parcel: creates footprints, extrudes the mass,
+        /// and optionally adds floor slabs and courtyard trees.
         /// </summary>
         private double GenerateParcelBuildings(Curve parcelCurve, List<BuildingTypeConfig> allowedConfigs,
-            Random rng, double floorHeight, bool generateFloorSlabs, bool hasTreeConfig, TreeConfig treeConfig,
+            Random rng, double floorHeight, bool generateFloorSlabs, bool hasTreeConfig, TreeConfig treeConfig, Brep terrain,
             List<Curve> footprints, List<Brep> masses, List<double> heights,
             List<Brep> floorSlabs, List<Curve> courtyards, List<Brep> trees)
         {
@@ -616,13 +638,23 @@ namespace Mycelium.Components
 
             if (courtyardInteriors.Count > 0)
             {
-                courtyards.AddRange(courtyardInteriors);
+                if (terrain != null)
+                    courtyards.AddRange(TerrainMassingHelpers.ProjectCurvesToTerrain(courtyardInteriors, terrain));
+                else
+                    courtyards.AddRange(courtyardInteriors);
 
                 if (hasTreeConfig && treeConfig.GenerateInCourtyards)
                 {
                     foreach (var courtyard in courtyardInteriors)
-                        trees.AddRange(TreeGenerator.GenerateTrees(courtyard, rng,
-                            treeConfig.DensityPercent, treeConfig.MinDiameter, treeConfig.MaxDiameter));
+                    {
+                        var rawTrees = TreeGenerator.GenerateTrees(courtyard, rng,
+                            treeConfig.DensityPercent, treeConfig.MinDiameter, treeConfig.MaxDiameter);
+
+                        if (terrain != null)
+                            trees.AddRange(TerrainMassingHelpers.AnchorTreesToTerrain(rawTrees, terrain));
+                        else
+                            trees.AddRange(rawTrees);
+                    }
                 }
             }
 
@@ -635,7 +667,9 @@ namespace Mycelium.Components
             for (int j = 0; j < blockFootprints.Count; j++)
                 heights.Add(height);
 
-            masses.AddRange(GeometryHelpers.ExtrudeFootprints(blockFootprints, height));
+            // Extrude building masses on terrain
+            double zPad = 0.0;
+            masses.AddRange(TerrainMassingHelpers.ExtrudeBuildingOnTerrain(blockFootprints, parcelCurve, height, floorHeight, terrain, out zPad));
 
             // Region area, not a per-curve sum: a perimeter block is returned as an outer curve
             // plus a courtyard curve, and summing both would add the void to the floor area.
@@ -644,7 +678,7 @@ namespace Mycelium.Components
             double footprintArea = GeometryHelpers.GetRegionArea(blockFootprints);
 
             if (generateFloorSlabs)
-                AddFloorSlabs(blockFootprints, avgFloors, floorHeight, floorSlabs);
+                AddFloorSlabs(blockFootprints, avgFloors, floorHeight, floorSlabs, zPad);
 
             return footprintArea * avgFloors;
         }
@@ -689,12 +723,12 @@ namespace Mycelium.Components
             return rounded;
         }
 
-        private static void AddFloorSlabs(List<Curve> blockFootprints, double avgFloors, double floorHeight, List<Brep> floorSlabs)
+        private static void AddFloorSlabs(List<Curve> blockFootprints, double avgFloors, double floorHeight, List<Brep> floorSlabs, double zPad = 0.0)
         {
             int numFloors = (int)Math.Ceiling(avgFloors);
             for (int f = 0; f < numFloors; f++)
             {
-                double z = f * floorHeight;
+                double z = zPad + f * floorHeight;
                 foreach (var fp in blockFootprints)
                 {
                     var planars = Brep.CreatePlanarBreps(fp, 0.001);
