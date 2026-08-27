@@ -63,25 +63,10 @@ jobs:
               core.info(`Template branch '${branch}' already exists.`);
             } catch (error) {
               if (error.status !== 404) throw error;
-              // Branch from the NEWEST existing version branch, not the repo default: the
-              // default only advances on stable releases and can lag several versions, which
-              // would resurrect stale template content on freshly created branches.
-              const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
-              const isVersion = (n) => /^\d+(\.\d+)+$/.test(n);
-              const byVersion = (a, b) => {
-                const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
-                for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-                  const d = (pa[i] || 0) - (pb[i] || 0);
-                  if (d) return d;
-                }
-                return 0;
-              };
-              const versions = branches.map(b => b.name).filter(isVersion).sort(byVersion);
-              let base = versions[versions.length - 1];
-              if (!base) {
-                const { data: repoInfo } = await github.rest.repos.get({ owner, repo });
-                base = repoInfo.default_branch;
-              }
+              // `main` tracks the templates for the current development version. Snapshot it
+              // for the release; branching from the previous version would silently discard
+              // template updates made for newly added or changed component ports.
+              const base = 'main';
               const { data: ref } = await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` });
               await github.rest.git.createRef({
                 owner, repo,
