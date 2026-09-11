@@ -9,30 +9,23 @@ using System.Text.Json.Nodes;
 namespace Mycelium.Analytics
 {
     /// <summary>
-    /// Machine-specific send budget for <see cref="Analytics"/>: a calendar-month cap on billed
-    /// events, plus a calendar-day ledger of what has already been reported.
+    /// Machine-specific send ledger for <see cref="Analytics"/>: a calendar-day record of what
+    /// has already been reported, plus a running monthly event count kept for observability.
     /// </summary>
     /// <remarks>
-    /// Ported from Eddy3D's <c>GUI.Analytics.AnalyticsBudget</c> (Eddy3D-Dev/Eddy3D). Umami bills
-    /// every hit AND every stored data property as one event, so two mechanisms bound what one
-    /// machine can contribute:
-    /// <list type="bullet">
-    /// <item><see cref="MonthlyEventCap"/> billed events per machine per calendar month, plus one
-    /// <c>identify</c> per machine per month instead of one per Rhino session.</item>
-    /// <item><see cref="TryClaimDaily"/>: a key (a ribbon tab, the startup hit, a run) is sent at
-    /// most once per machine per UTC day, so a Views figure is a count of machine-days rather
-    /// than how often someone reopens a definition.</item>
-    /// </list>
+    /// Ported from Eddy3D's <c>GUI.Analytics.AnalyticsBudget</c> (Eddy3D-Dev/Eddy3D). That class
+    /// enforced a monthly cap to protect Umami Cloud's 100k-events/month free tier; Mycelium
+    /// reports to a self-hosted instance with no such billing ceiling, so no cap is enforced
+    /// here either. <see cref="TryClaimDaily"/> is the mechanism that still matters: a key (a
+    /// ribbon tab, the startup hit, a run) is sent at most once per machine per UTC day, so a
+    /// Views figure is a count of machine-days rather than how often someone reopens a
+    /// definition — that has nothing to do with billing.
     /// State lives next to the plugin's own app-data folder (<c>%APPDATA%/Mycelium</c>,
     /// <c>~/Library/Application Support/Mycelium</c> on macOS under net7.0). If the file cannot
-    /// be read or written the budget degrades to an in-memory ledger for the current process —
-    /// still capped, never unbounded.
+    /// be read or written the ledger degrades to an in-memory one for the current process.
     /// </remarks>
     public static class AnalyticsBudget
     {
-        /// <summary>Billed events one machine may send per calendar month.</summary>
-        public const int MonthlyEventCap = 200;
-
         private static readonly object Gate = new object();
 
         private static readonly string DefaultStatePath = Path.Combine(
@@ -59,10 +52,12 @@ namespace Mycelium.Analytics
         private static string CurrentDay => Clock().ToString("yyyy-MM-dd");
 
         /// <summary>
-        /// Reserves <paramref name="cost"/> billed events from this month's budget.
+        /// Records <paramref name="cost"/> events against this month's running count. Always
+        /// succeeds (no monthly cap on the self-hosted instance); the bool return is kept so
+        /// call sites that check it don't need to change.
         /// </summary>
-        /// <param name="cost">Billed events the payload will cost (1 hit + 1 per data property).</param>
-        /// <returns><c>true</c> if the budget covered it; <c>false</c> if the caller must drop the payload.</returns>
+        /// <param name="cost">Events the payload will cost (1 hit + 1 per data property).</param>
+        /// <returns><c>true</c> unless <paramref name="cost"/> is not positive.</returns>
         public static bool TryConsume(int cost)
         {
             if (cost <= 0) return false;
@@ -70,8 +65,6 @@ namespace Mycelium.Analytics
             lock (Gate)
             {
                 Load();
-                if (_spent + cost > MonthlyEventCap) return false;
-
                 _spent += cost;
                 Save();
                 return true;
@@ -79,15 +72,14 @@ namespace Mycelium.Analytics
         }
 
         /// <summary>
-        /// Claims the once-per-machine-per-day send for <paramref name="key"/>, charging
-        /// <paramref name="cost"/> against the monthly budget in the same step.
+        /// Claims the once-per-machine-per-day send for <paramref name="key"/>, recording
+        /// <paramref name="cost"/> against the monthly count in the same step.
         /// </summary>
         /// <param name="key">What is being reported — <c>startup</c>, <c>tab/vegetation</c>,
         /// <c>run/tab/mycelium/generate</c>. Case-sensitive.</param>
-        /// <param name="cost">Billed events the payload will cost.</param>
-        /// <returns><c>true</c> for the first caller today with this key, and only if the monthly
-        /// budget still covers it. <c>false</c> means: already sent today, or budget spent —
-        /// either way the caller drops the payload.</returns>
+        /// <param name="cost">Events the payload will cost.</param>
+        /// <returns><c>true</c> for the first caller today with this key; <c>false</c> means
+        /// already sent today, and the caller drops the payload.</returns>
         public static bool TryClaimDaily(string key, int cost = 1)
         {
             if (string.IsNullOrWhiteSpace(key) || cost <= 0) return false;
@@ -96,7 +88,6 @@ namespace Mycelium.Analytics
             {
                 Load();
                 if (_sentToday.Contains(key)) return false;
-                if (_spent + cost > MonthlyEventCap) return false;
 
                 _sentToday.Add(key);
                 _spent += cost;
@@ -116,22 +107,20 @@ namespace Mycelium.Analytics
         }
 
         /// <summary>
-        /// Claims the single <c>identify</c> send allowed per machine per month, charging
-        /// <paramref name="cost"/> against the same budget.
+        /// Claims the single <c>identify</c> send allowed per machine per month, recording
+        /// <paramref name="cost"/> against the same running count.
         /// </summary>
-        /// <param name="cost">Billed events the identify payload will cost.</param>
+        /// <param name="cost">Events the identify payload will cost.</param>
         /// <param name="version">Plugin version the payload will report. A machine that upgrades
         /// mid-month re-arms the claim, or the profile keeps reporting the version installed when
         /// the month began for up to 31 days after the upgrade.</param>
-        /// <returns><c>true</c> for the first caller this month at this version (and only if the
-        /// budget covers it).</returns>
+        /// <returns><c>true</c> for the first caller this month at this version.</returns>
         public static bool TryClaimIdentify(int cost, string version = "")
         {
             lock (Gate)
             {
                 Load();
                 if (_identified && _identifiedVersion == version) return false;
-                if (_spent + cost > MonthlyEventCap) return false;
 
                 _spent += cost;
                 _identified = true;
@@ -141,14 +130,11 @@ namespace Mycelium.Analytics
             }
         }
 
-        /// <summary>Billed events already spent this month. Diagnostics only.</summary>
+        /// <summary>Events reported this month. Diagnostics only — nothing is capped against it.</summary>
         public static int Spent
         {
             get { lock (Gate) { Load(); return _spent; } }
         }
-
-        /// <summary>Billed events still available this month. Diagnostics only.</summary>
-        public static int Remaining => Math.Max(0, MonthlyEventCap - Spent);
 
         /// <summary>Discards the cached state so the next call re-reads disk. Test hook.</summary>
         public static void Reset()
