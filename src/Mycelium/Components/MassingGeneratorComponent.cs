@@ -307,6 +307,8 @@ namespace Mycelium.Components
             DA.SetData(9, metrics);
             DA.SetData(10, morphology.ToDisplayString());
             DA.SetData(11, manifest.ToJson());
+
+            Mycelium.Analytics.Analytics.TrackRun("Massing", "generate");
         }
 
         protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)

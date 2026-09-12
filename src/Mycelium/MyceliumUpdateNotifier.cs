@@ -23,6 +23,10 @@ namespace Mycelium
 
         public override GH_LoadingInstruction PriorityLoad()
         {
+            // Privacy-first usage analytics (ported from Eddy3D) — tracks which ribbon tab is
+            // used, once per machine per day. See Mycelium.Analytics.Analytics for the opt-out.
+            Mycelium.Analytics.TabUsage.Install();
+
             try
             {
                 // A canvas may already exist (plugin reloaded into a running Grasshopper); otherwise
