@@ -187,7 +187,7 @@ namespace Mycelium.Components
 
             if (ButtonBounds.Contains(mouseLoc) && e.Button == MouseButtons.Left)
             {
-                var menu = new ContextMenuStrip();
+                var menu = new ContextMenuStrip().DisposeOnClose();
                 if (Owner is TemplateComponent comp)
                 {
                     comp.AppendTemplateMenuItems(menu);
