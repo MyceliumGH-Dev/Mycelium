@@ -55,8 +55,12 @@ namespace Mycelium.Analytics
 
         private const string UnknownSlug = "unknown";
 
-        // 1 hit + the identify payload's data properties (rhino_version, mycelium_version).
-        private const int IdentifyCost = 3;
+        // 1 hit + the profile payload's data properties (rhino_version, mycelium_version, os,
+        // os_version, arch, and network_org when the lookup succeeds).
+        private const int ProfileCost = 7;
+
+        // The identify payload carries the same property set.
+        private const int IdentifyCost = ProfileCost;
 
         // Use SocketsHttpHandler to disable proxy detection which reads system config
         private static readonly HttpClient HttpClient = new HttpClient(new SocketsHttpHandler
@@ -105,6 +109,44 @@ namespace Mycelium.Analytics
         public static void TrackStartup()
         {
             SendDaily("startup", "/startup", "Startup", eventName: null);
+        }
+
+        /// <summary>
+        /// The daily <c>profile</c> event at <c>/startup</c> — Rhino build, plugin build, operating
+        /// system, architecture and network organisation, as event PROPERTIES.
+        /// </summary>
+        /// <remarks>
+        /// <para>These facts used to travel only in the once-a-month <c>identify</c> payload, and in
+        /// the dashboard they were effectively absent. Two reasons, and the fix has to answer both.
+        /// An <c>identify</c> writes SESSION data, and a session is keyed on the IP among other
+        /// things — so a laptop that moves between campus, home and a cafe opens a new session on
+        /// each network while the monthly claim has already been spent on whichever one happened to
+        /// be active first. Every other session that month carries no properties at all. And Umami's
+        /// Properties view groups event data by event NAME, so even a property that does land has
+        /// nowhere to surface unless some named event carries it.</para>
+        /// <para>So the facts ride here, on a named event, once per machine per UTC day: the same
+        /// cadence as every other hit, which keeps a number in this breakdown a count of machine-days
+        /// exactly like the rest of the dashboard. <c>/startup</c> stays a page view and keeps its
+        /// job as the denominator — an event with a name is not counted as one, so a named
+        /// <c>/startup</c> would have quietly zeroed it.</para>
+        /// </remarks>
+        public static void TrackProfile()
+        {
+            if (!Config.Enabled) return;
+            if (!AnalyticsBudget.TryClaimDaily("profile", ProfileCost)) return;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var data = await BuildProfileDataAsync();
+                    await SendPayloadAsync("/startup", "profile", "Profile", data, budgetClaimed: true);
+                }
+                catch
+                {
+                    // Best-effort; the daily claim is spent either way.
+                }
+            });
         }
 
         /// <summary>
@@ -290,11 +332,14 @@ namespace Mycelium.Analytics
                 string visitorId = Identity.GetUniqueId();
                 string userAgent = BuildUserAgent(visitorId);
 
-                // 1. Send IDENTIFY request (Session Setup) — ONCE PER MACHINE PER MONTH.
+                // 1. Send IDENTIFY request (Session Setup) — once per machine per DAY. Daily rather
+            // than monthly: the session an identify attaches to is keyed on the IP, so one
+            // send a month lands on one network's session and leaves every other session
+            // that machine opens without any properties at all.
                 string myceliumVersion = GetPluginVersion();
-                if (AnalyticsBudget.TryClaimIdentify(IdentifyCost, myceliumVersion))
+                if (AnalyticsBudget.TryClaimDaily("identify/" + myceliumVersion, IdentifyCost))
                 {
-                    await SendIdentifyAsync(url, eventName, title, userAgent, myceliumVersion);
+                    await SendIdentifyAsync(url, eventName, title, userAgent);
                 }
 
                 // 2. Send DATA request (Event or PageView)
@@ -321,8 +366,8 @@ namespace Mycelium.Analytics
                 {
                     ["website"] = Config.WebsiteId,
                     ["hostname"] = "mycelium-plugin",
-                    ["language"] = "en-US",
-                    ["screen"] = "1920x1080",
+                    ["language"] = HostInfo.Language(),
+                    ["screen"] = HostInfo.Screen,
                     ["url"] = url,
                     ["referrer"] = "https://mycelium-gh.netlify.app",
                     ["title"] = title
@@ -362,19 +407,65 @@ namespace Mycelium.Analytics
         }
 
         /// <summary>
+        /// The machine profile both <see cref="TrackProfile"/> and the <c>identify</c> payload report:
+        /// Rhino build, plugin build, OS family and version, architecture, and the network
+        /// organisation when the lookup answers. One builder so the two can never drift — a property
+        /// present on the event and absent from the session profile reads as a broken dashboard.
+        /// </summary>
+        private static async Task<JsonObject> BuildProfileDataAsync()
+        {
+            var data = new JsonObject
+            {
+                ["rhino_version"] = GetRhinoVersion(),
+                ["mycelium_version"] = GetPluginVersion(),
+                ["os"] = HostInfo.OsFamily(),
+                ["os_version"] = HostInfo.OsVersion(),
+                ["arch"] = HostInfo.Architecture()
+            };
+
+            // The network organisation ("Georgia Tech", "T-Mobile") is what says whether a machine is
+            // an institutional install. It is a network round trip, so it is resolved here — once a
+            // day, on the sender's own thread — and omitted entirely when the lookup cannot answer.
+            string? networkOrg = await GetNetworkOrgAsync();
+            if (!string.IsNullOrWhiteSpace(networkOrg))
+            {
+                data["network_org"] = networkOrg;
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// The network organisation behind this machine's public IP, via ipinfo.io — "Georgia Tech",
+        /// "T-Mobile". It is the only signal that separates an institutional deployment from a home
+        /// install, which is what a funding question is actually about. Returns null on any failure:
+        /// analytics must never break the plugin, and an absent property is honest about that.
+        /// </summary>
+        private static async Task<string?> GetNetworkOrgAsync()
+        {
+            try
+            {
+                var response = await HttpClient.GetStringAsync("https://ipinfo.io/json");
+                var json = JsonNode.Parse(response);
+                string org = json?["org"]?.ToString() ?? "";
+                return !string.IsNullOrWhiteSpace(org) ? org : "";
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Sends the once-per-month <c>identify</c> payload describing this machine. The caller
         /// has already reserved <see cref="IdentifyCost"/> from the budget.
         /// </summary>
         private static async Task SendIdentifyAsync(
-            string url, string? eventName, string title, string userAgent, string myceliumVersion)
+            string url, string? eventName, string title, string userAgent)
         {
             try
             {
-                var identifyData = new JsonObject
-                {
-                    ["rhino_version"] = GetRhinoVersion(),
-                    ["mycelium_version"] = myceliumVersion
-                };
+                var identifyData = await BuildProfileDataAsync();
 
                 var identifyPayload = new JsonObject
                 {
@@ -383,8 +474,8 @@ namespace Mycelium.Analytics
                     {
                         ["website"] = Config.WebsiteId,
                         ["hostname"] = "mycelium-plugin",
-                        ["language"] = "en-US",
-                        ["screen"] = "1920x1080",
+                        ["language"] = HostInfo.Language(),
+                        ["screen"] = HostInfo.Screen,
                         ["url"] = url,
                         ["referrer"] = "https://mycelium-gh.netlify.app",
                         ["title"] = title,
@@ -411,9 +502,9 @@ namespace Mycelium.Analytics
         /// <c>data</c> because the header is part of the hit and therefore free, and because
         /// Umami derives its session id from exactly three inputs plus a salt.
         /// </summary>
-        private static string BuildUserAgent(string visitorId)
+        public static string BuildUserAgent(string visitorId)
         {
-            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            return $"Mozilla/5.0 ({HostInfo.UserAgentPlatform()}) AppleWebKit/537.36 (KHTML, like Gecko) " +
                    $"Chrome/120.0.0.0 Safari/537.36 Mycelium/1.0 (id:{visitorId})";
         }
 

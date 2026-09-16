@@ -76,7 +76,14 @@ namespace Mycelium.Analytics
                 // Analytics must never break plugin loading.
             }
 
+            // Eto answers from AppKit on macOS, so the screen has to be read on the UI thread — this
+            // is it. Every payload afterwards reports the cached value; Umami has no other input
+            // for the device class, so a machine whose probe fails is a desktop by default rather
+            // than by measurement.
+            HostInfo.ProbeScreen();
+
             Analytics.TrackStartup();
+            Analytics.TrackProfile();
         }
 
         private static void OnDocumentAdded(GH_DocumentServer sender, GH_Document doc) => Hook(doc);
