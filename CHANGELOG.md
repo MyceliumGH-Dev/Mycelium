@@ -6,7 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0.5] - 2026-08-27
+
 ### Added
+- Optional `Terrain` input on the Massing Generator. When supplied, streets, parks, parcels, courtyards, trees, building masses, and floor slabs are placed on or projected to the generated terrain while the existing flat-site behavior remains unchanged when it is omitted.
+- Continuous terrain generation based on an updated noise algorithm, with terrain-aware massing helpers for elevation sampling, curve projection, tree anchoring, and building foundations that extend below the lowest sampled ground elevation.
 - `Green Network Generator`, a backward-compatible Vegetation component that connects directly to Massing Generator boundary, footprint, and park outputs. Existing parks become network anchors; seeded refuges and guide-aligned or automatic corridors extend them while building footprints are excluded.
 - `StreetNetwork` input on the Massing Generator. Wiring a sub-option name (`"Orthogonal/Cerda"`, `"Fan Plan"`, …) overrides the context-menu selection, so batch campaigns can sweep the network families without editing the definition. Names are case-, accent- and separator-insensitive; unknown names raise a warning listing the valid ones.
 - The case manifest now records the canonical boundary digest, the boundary canonicalization tolerance and decimal count, the document absolute tolerance, and the number of guarded boolean fallbacks taken while generating the case. Manifest schema version is now `1.1.0`.

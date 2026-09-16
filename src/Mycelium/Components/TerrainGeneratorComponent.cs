@@ -28,12 +28,12 @@ namespace Mycelium.Components
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
             pManager.AddCurveParameter("Boundary", "B", "Closed curve that defines the terrain outline", GH_ParamAccess.item);
-            pManager.AddNumberParameter("Resolution", "R", "Grid cell size - smaller values give more detail but run slower (try 1 to 10)", GH_ParamAccess.item, 5.0);
+            pManager.AddNumberParameter("Resolution", "R", "Grid cell size in meters - smaller values give more detail (try 2 to 8)", GH_ParamAccess.item, 4.0);
             pManager.AddNumberParameter("BaseHeight", "Hb", "Base ground level - the terrain sits on top of this", GH_ParamAccess.item, 0.0);
-            pManager.AddNumberParameter("MaxHeight", "H", "Maximum terrain height in model units (try 5 to 50)", GH_ParamAccess.item, 20.0);
-            pManager.AddNumberParameter("NoiseScale", "NS", "Horizontal scale of hills - smaller values create broader hills, larger values create tighter bumps", GH_ParamAccess.item, 0.05);
+            pManager.AddNumberParameter("MaxHeight", "H", "Maximum terrain elevation variation in meters (try 5 to 25)", GH_ParamAccess.item, 12.0);
+            pManager.AddNumberParameter("NoiseScale", "NS", "Horizontal scale of terrain features - try 1.0 to 10.0 (default 5.0)", GH_ParamAccess.item, 5.0);
             pManager.AddIntegerParameter("Seed", "S", "Random seed - same number always produces the same terrain shape", GH_ParamAccess.item, 0);
-            pManager.AddNumberParameter("Damping", "D", "Peak sharpness - below 1 smooths and rounds peaks, 1 is raw noise, above 1 sharpens peaks and flattens valleys (try 0.3 to 3.0)", GH_ParamAccess.item, 1.0);
+            pManager.AddNumberParameter("Damping", "D", "Elevation profile shaping - below 1 smooths valleys and hills, above 1 sharpens peaks and flattens valleys", GH_ParamAccess.item, 1.0);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -44,10 +44,10 @@ namespace Mycelium.Components
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             Curve boundary = null;
-            double resolution = 5.0;
+            double resolution = 4.0;
             double baseHeight = 0.0;
-            double maxHeight = 20.0;
-            double noiseScale = 0.05;
+            double maxHeight = 12.0;
+            double noiseScaleInput = 5.0;
             int seed = 0;
             double damping = 1.0;
 
@@ -55,9 +55,12 @@ namespace Mycelium.Components
             if (!DA.GetData(1, ref resolution)) return;
             if (!DA.GetData(2, ref baseHeight)) return;
             if (!DA.GetData(3, ref maxHeight)) return;
-            if (!DA.GetData(4, ref noiseScale)) return;
+            if (!DA.GetData(4, ref noiseScaleInput)) return;
             if (!DA.GetData(5, ref seed)) return;
             if (!DA.GetData(6, ref damping)) return;
+
+            // Map user-friendly 1-10 slider scale to internal noise frequency
+            double noiseScale = noiseScaleInput * 0.001;
 
             if (boundary == null || !boundary.IsValid)
             {
@@ -102,8 +105,8 @@ namespace Mycelium.Components
         }
 
         /// <summary>
-        /// Creates the terrain surface: samples a ridged-multifractal heightmap over a padded
-        /// grid, lofts a NURBS surface through the points, and trims it to the boundary.
+        /// Creates the terrain surface: samples a macro-slope + rolling urban topography heightmap
+        /// over a padded grid, lofts a smooth C2 NURBS surface, and trims it to the boundary.
         /// </summary>
         private Brep CreateTerrain(Curve boundary, double resolution, double baseHeight,
             double maxHeight, double noiseScale, int seed, double damping)
@@ -133,9 +136,14 @@ namespace Mycelium.Components
 
             var noise = new OpenSimplexNoise(seed);
 
-            // Seed-dependent coordinate offset prevents the zero-point anomaly at the origin
+            // Offset coordinates by seed
             double seedOffsetX = (seed * 1234.5678) % 10000.0;
             double seedOffsetY = (seed * 7890.1234) % 10000.0;
+
+            // Directional slope from seed
+            double slopeAngle = (seed * 1.6180339887) % (Math.PI * 2.0);
+            double cosSlope = Math.Cos(slopeAngle);
+            double sinSlope = Math.Sin(slopeAngle);
 
             double[,] heightmap = new double[rows, cols];
 
@@ -143,20 +151,20 @@ namespace Mycelium.Components
             {
                 for (int j = 0; j < cols; j++)
                 {
-                    double offsetX = resolution * 0.13;
-                    double offsetY = resolution * 0.17;
-                    double x = minPt.X + j * resolution + offsetX;
-                    double y = minPt.Y + i * resolution + offsetY;
+                    double x = minPt.X + j * resolution;
+                    double y = minPt.Y + i * resolution;
 
-                    double noiseX = (x + seedOffsetX) * noiseScale;
-                    double noiseY = (y + seedOffsetY) * noiseScale;
+                    double wx = x + seedOffsetX;
+                    double wy = y + seedOffsetY;
 
-                    // Domain warp gives the ridges an organic, meandering character
-                    Point2d warped = DomainWarp(noise, noiseX, noiseY, 1.5);
-                    double nx = warped.X * 0.1;
-                    double ny = warped.Y * 0.1;
+                    // Base slope layer (40% weight)
+                    double slopeCoord = (wx * cosSlope + wy * sinSlope) * noiseScale * 0.7;
+                    double macroSlope = Math.Sin(slopeCoord) * 0.5 + 0.5;
 
-                    heightmap[i, j] = RidgedMultifractal(noise, nx, ny); // raw [0, 1]; damping applied next
+                    // Noise layer (60% weight)
+                    double rollingTerrain = Fbm(noise, wx * noiseScale, wy * noiseScale, octaves: 4);
+
+                    heightmap[i, j] = 0.40 * macroSlope + 0.60 * rollingTerrain;
                 }
             }
 
@@ -167,15 +175,16 @@ namespace Mycelium.Components
             {
                 for (int j = 0; j < cols; j++)
                 {
-                    double offsetX = resolution * 0.13;
-                    double offsetY = resolution * 0.17;
-                    double x = minPt.X + j * resolution + offsetX;
-                    double y = minPt.Y + i * resolution + offsetY;
+                    double x = minPt.X + j * resolution;
+                    double y = minPt.Y + i * resolution;
                     points.Add(new Point3d(x, y, heightmap[i, j]));
                 }
             }
 
-            NurbsSurface surface = NurbsSurface.CreateFromPoints(points, rows, cols, 1, 1);
+            // Create smooth NURBS surface
+            int uDegree = Math.Min(3, rows - 1);
+            int vDegree = Math.Min(3, cols - 1);
+            NurbsSurface surface = NurbsSurface.CreateFromPoints(points, rows, cols, uDegree, vDegree);
             if (surface == null) return null;
 
             Brep brep = surface.ToBrep();
@@ -318,33 +327,58 @@ namespace Mycelium.Components
             return fallback;
         }
 
+        // 2D rotation matrix constants (~36.87 degrees) used to decorrelate successive noise octaves
+        // and eliminate lattice-aligned linear artifacts (Gustavson 2005 / Perlin 2002).
+        private const double CosAngle = 0.8;
+        private const double SinAngle = 0.6;
+
         /// <summary>
-        /// Ridged multifractal noise (Musgrave et al., 1989).
-        /// Creates sharp ridges at noise zero-crossings and flat sediment-filled valleys.
-        /// Unlike standard fBm, which produces uniform "lumpy" terrain, ridged multifractal
-        /// uses |signal| inversion and inter-octave feedback to concentrate high-frequency
-        /// detail on ridge crests while leaving valleys smooth.
+        /// Standard fractional Brownian motion (fBm) with 2D octave rotation (Gustavson 2005 / Perlin 2002).
+        /// Provides a gentle rolling base topography so valleys retain natural contours.
+        /// </summary>
+        private double Fbm(OpenSimplexNoise noise, double x, double y,
+            int octaves = 4, double lacunarity = 2.0, double gain = 0.5)
+        {
+            double total = 0.0;
+            double amplitude = 1.0;
+            double maxAmp = 0.0;
+            double px = x;
+            double py = y;
+
+            for (int i = 0; i < octaves; i++)
+            {
+                total += noise.Evaluate(px, py) * amplitude;
+                maxAmp += amplitude;
+                amplitude *= gain;
+
+                // Decorrelate successive octaves with a 2D rotation matrix
+                double rx = (px * CosAngle - py * SinAngle) * lacunarity;
+                double ry = (px * SinAngle + py * CosAngle) * lacunarity;
+                px = rx;
+                py = ry;
+            }
+
+            return (maxAmp > 0) ? (total / maxAmp) * 0.5 + 0.5 : 0.5;
+        }
+
+        /// <summary>
+        /// Ridged multifractal noise (Musgrave et al., SIGGRAPH 1989) with 2D octave rotation
+        /// (Gustavson, 2005) to eliminate simplex lattice-aligned linear artifacts.
+        /// Creates sharp ridges at noise zero-crossings and concentrates high-frequency detail on crests.
         /// </summary>
         private double RidgedMultifractal(OpenSimplexNoise noise, double x, double y,
             int octaves = 6, double lacunarity = 2.0, double gain = 2.0,
             double offset = 1.0, double H = 0.9, double sharpness = 2.0)
         {
             double total = 0.0;
-            double frequency = 1.0;
             double weight = 1.0;
-
-            // Precompute spectral weights: higher octaves contribute less energy
-            double[] spectralWeights = new double[octaves];
+            double px = x;
+            double py = y;
             double specFreq = 1.0;
-            for (int i = 0; i < octaves; i++)
-            {
-                spectralWeights[i] = Math.Pow(specFreq, -H);
-                specFreq *= lacunarity;
-            }
 
             for (int i = 0; i < octaves; i++)
             {
-                double signal = noise.Evaluate(x * frequency, y * frequency);
+                double signal = noise.Evaluate(px, py);
 
                 // Ridges form at zero-crossings: val = (offset - |signal|)^sharpness
                 signal = offset - Math.Abs(signal);
@@ -354,21 +388,32 @@ namespace Mycelium.Components
                 signal *= weight;
                 weight = Math.Max(0.0, Math.Min(1.0, signal * gain));
 
-                total += signal * spectralWeights[i];
-                frequency *= lacunarity;
+                double spectralWeight = Math.Pow(specFreq, -H);
+                total += signal * spectralWeight;
+                specFreq *= lacunarity;
+
+                // Decorrelate successive octaves with a 2D rotation matrix to avoid lattice alignment
+                double rx = (px * CosAngle - py * SinAngle) * lacunarity;
+                double ry = (px * SinAngle + py * CosAngle) * lacunarity;
+                px = rx;
+                py = ry;
             }
 
             return Math.Max(0.0, Math.Min(1.0, total * 0.5));
         }
 
         /// <summary>
-        /// Domain warping for more organic terrain features.
+        /// Domain warping (Quilez, 2007) for organic ridge meandering and natural curvature.
         /// </summary>
-        private Point2d DomainWarp(OpenSimplexNoise noise, double x, double y, double strength)
+        private Point2d DomainWarp(OpenSimplexNoise noise, double x, double y, double strength = 1.2)
         {
-            double q = noise.Evaluate(x * 0.02, y * 0.02);
-            double r = noise.Evaluate(x * 0.02 + 5.3 * q, y * 0.02 + 4.1 * q);
-            return new Point2d(x + strength * q, y + strength * r);
+            double qx = noise.Evaluate(x * 0.5 + 1.7, y * 0.5 + 9.2);
+            double qy = noise.Evaluate(x * 0.5 + 8.3, y * 0.5 + 2.8);
+
+            double rx = noise.Evaluate((x + 4.0 * qx) * 0.5 + 3.1, (y + 4.0 * qy) * 0.5 + 1.5);
+            double ry = noise.Evaluate((x + 4.0 * qx) * 0.5 + 7.4, (y + 4.0 * qy) * 0.5 + 5.2);
+
+            return new Point2d(x + strength * rx, y + strength * ry);
         }
     }
 }
