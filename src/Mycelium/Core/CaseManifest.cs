@@ -17,7 +17,7 @@ namespace Mycelium.Core
     /// </summary>
     public sealed class CaseManifest
     {
-        public const string CurrentSchemaVersion = "1.1.0";
+        public const string CurrentSchemaVersion = "1.2.0";
 
         public string Schema { get; set; } = "https://github.com/MyceliumGH-Dev/Mycelium/blob/dev/docs/case-manifest.schema.json";
         public string SchemaVersion { get; set; } = CurrentSchemaVersion;

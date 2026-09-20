@@ -82,7 +82,7 @@ namespace Mycelium.Components
             pManager.AddCurveParameter("Parcels", "Parc", "Building parcel boundaries", GH_ParamAccess.list);
             pManager.AddTextParameter("Metrics", "Met", "Area and unit metrics", GH_ParamAccess.item);
             pManager.AddTextParameter("MorphologyMetrics", "Morph",
-                "Urban morphology indicators including lambda_p, directional lambda_f, open/park ratios, and height statistics",
+                "Urban morphology indicators including BCR (lambda_p), BDR, RaR, VR, SVF, AR, directional lambda_f, open/park ratios, and height statistics",
                 GH_ParamAccess.item);
             pManager.AddTextParameter("CaseManifest", "JSON",
                 "Versioned JSON case manifest containing inputs, provenance, counts, development metrics, and morphology metrics",
@@ -233,7 +233,8 @@ namespace Mycelium.Components
             // 5. Development and morphology metrics
             var development = CalculateDevelopmentMetrics(boundary, totalGFA);
             string metrics = BuildMetrics(development, allParcels.Count, masses.Count, parks.Count, trees.Count);
-            var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, parks, analysisDirection);
+            var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, parks, allParcels,
+                streetWidth, terrain, analysisDirection);
 
             // 6. Reproducible parameter/provenance sidecar. Geometry can be exported independently.
             var manifest = new CaseManifest

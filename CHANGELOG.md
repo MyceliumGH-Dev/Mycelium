@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Urban form indices in the morphology metrics: built density ratio (BDR), road area ratio (RaR), vertical area ratio (VR), mean ground-level sky view factor (SVF) and aspect ratio (AR), with the underlying built volume, road area and facade area. SVF is ray-cast from a grid of roughly 400 open-ground points, 144 cosine-weighted rays each, against the building masses and the terrain when one is wired; trees do not occlude. AR is the mean building height over the `StreetWidth` input. Road area is the site minus every parcel, parks included.
+- The existing plan area density and plan-area-weighted mean height are now labelled BCR and BHt in the `MorphologyMetrics` text; their manifest keys are unchanged.
+
+### Changed
+- Manifest schema version is now `1.2.0` for the added morphology keys. The schema version is part of the case identifier, so identifiers differ from those produced by 0.1.0.5.
+
 ## [0.1.0.5] - 2026-08-27
 
 ### Added
