@@ -52,6 +52,36 @@ namespace Mycelium.Core.Tests
         }
 
         [Fact]
+        public void FacadeArea_IsSurfaceMinusRoofAndBase()
+        {
+            // 10 x 10 x 20 prism: surface 1000, plan 100, walls 4 * 10 * 20 = 800.
+            Assert.Equal(800.0, MorphologyMetrics.FacadeAreaFromSurface(1000.0, 100.0), 8);
+            Assert.Equal(0.0, MorphologyMetrics.FacadeAreaFromSurface(100.0, 100.0), 8);
+        }
+
+        [Fact]
+        public void CosineWeightedHemisphere_IsUnitUpwardAndCosineDistributed()
+        {
+            var rays = MorphologyMetrics.CosineWeightedHemisphere(MorphologyMetrics.SkyViewRayCount);
+
+            Assert.Equal(MorphologyMetrics.SkyViewRayCount, rays.Length);
+            double meanZ = 0.0, meanX = 0.0, meanY = 0.0;
+            foreach (var ray in rays)
+            {
+                Assert.True(ray.Z > 0.0);
+                Assert.Equal(1.0, ray.X * ray.X + ray.Y * ray.Y + ray.Z * ray.Z, 10);
+                meanX += ray.X / rays.Length;
+                meanY += ray.Y / rays.Length;
+                meanZ += ray.Z / rays.Length;
+            }
+
+            // E[cos(theta)] under a cosine-weighted density is 2/3; the set has no azimuthal bias.
+            Assert.Equal(2.0 / 3.0, meanZ, 2);
+            Assert.Equal(0.0, meanX, 2);
+            Assert.Equal(0.0, meanY, 2);
+        }
+
+        [Fact]
         public void CaseManifest_UsesStableCamelCaseSchema()
         {
             var manifest = new CaseManifest

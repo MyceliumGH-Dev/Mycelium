@@ -7,7 +7,7 @@
   "required": ["schema", "schemaVersion", "caseId", "generator", "parameters", "geometry", "development", "morphology"],
   "properties": {
     "schema": { "type": "string", "format": "uri" },
-    "schemaVersion": { "const": "1.1.0" },
+    "schemaVersion": { "const": "1.2.0" },
     "caseId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "generator": {
       "type": "object",
