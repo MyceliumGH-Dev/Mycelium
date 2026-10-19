@@ -60,6 +60,47 @@ namespace Mycelium.Core.Tests
         }
 
         [Fact]
+        public void MassMeasure_FlatPrism_UsesItsFullExtent()
+        {
+            // 10 x 10 footprint, 20 tall, on a flat site: the solid spans exactly the design height.
+            var mass = new MorphologyMetrics.MassMeasure(height: 20.0, extent: 20.0, volume: 2000.0,
+                surfaceArea: 2.0 * 100.0 + 40.0 * 20.0, crosswindWidth: 10.0);
+
+            Assert.Equal(100.0, mass.PlanArea, 8);
+            Assert.Equal(2000.0, mass.BuiltVolume, 8);
+            Assert.Equal(200.0, mass.FrontalArea, 8);
+            Assert.Equal(800.0, mass.FacadeArea, 8);
+        }
+
+        [Fact]
+        public void MassMeasure_OnTerrain_ExcludesTheFoundation()
+        {
+            // The same building on terrain reaches 1.5 below its pad, so the solid is 21.5 tall.
+            // Every metric must equal the flat case: only what stands above the pad counts.
+            const double extent = 21.5;
+            var mass = new MorphologyMetrics.MassMeasure(height: 20.0, extent: extent,
+                volume: 100.0 * extent, surfaceArea: 2.0 * 100.0 + 40.0 * extent, crosswindWidth: 10.0);
+
+            Assert.Equal(20.0, mass.Height, 8);
+            Assert.Equal(100.0, mass.PlanArea, 8);
+            Assert.Equal(2000.0, mass.BuiltVolume, 8);
+            Assert.Equal(200.0, mass.FrontalArea, 8);
+            Assert.Equal(800.0, mass.FacadeArea, 8);
+        }
+
+        [Fact]
+        public void MassMeasure_WithoutExtent_HasNoAreaOrVolume()
+        {
+            var mass = new MorphologyMetrics.MassMeasure(height: 0.0, extent: 0.0, volume: 0.0,
+                surfaceArea: 200.0, crosswindWidth: 10.0);
+
+            Assert.Equal(0.0, mass.PlanArea, 8);
+            Assert.Equal(0.0, mass.BuiltVolume, 8);
+            Assert.Equal(0.0, mass.FrontalArea, 8);
+            Assert.Equal(0.0, mass.FacadeArea, 8);
+        }
+
+        [Fact]
         public void CosineWeightedHemisphere_IsUnitUpwardAndCosineDistributed()
         {
             var rays = MorphologyMetrics.CosineWeightedHemisphere(MorphologyMetrics.SkyViewRayCount);

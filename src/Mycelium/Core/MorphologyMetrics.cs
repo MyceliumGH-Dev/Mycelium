@@ -89,6 +89,12 @@ namespace Mycelium.Core
         /// <summary>Rays cast per ground sample point for the sky view factor.</summary>
         internal const int SkyViewRayCount = 144;
 
+        /// <param name="massHeights">
+        /// Design height of each mass above its pad, index-aligned with <paramref name="masses"/>.
+        /// On terrain a mass also extends below ground as a foundation, so the height of the solid
+        /// overstates the building; every height-based metric uses these values instead. When
+        /// null, the vertical extent of each solid is used, which is exact on a flat site.
+        /// </param>
         /// <param name="allParcels">
         /// Every planar parcel the subdivision produced, park parcels included. Streets are the
         /// site left over once these are removed, so road area is site area minus their sum.
@@ -96,8 +102,8 @@ namespace Mycelium.Core
         /// <param name="streetWidth">Canyon width used for the aspect ratio.</param>
         /// <param name="terrain">Optional terrain; sky view samples sit on it and it occludes.</param>
         public static MorphologyMetricsResult Calculate(Curve boundary, IReadOnlyList<Curve> footprints,
-            IReadOnlyList<Brep> masses, IReadOnlyList<Curve> parks, IReadOnlyList<Curve> allParcels,
-            double streetWidth, Brep terrain, Vector3d analysisDirection)
+            IReadOnlyList<Brep> masses, IReadOnlyList<double> massHeights, IReadOnlyList<Curve> parks,
+            IReadOnlyList<Curve> allParcels, double streetWidth, Brep terrain, Vector3d analysisDirection)
         {
             double siteArea = GeometryHelpers.GetCurveArea(boundary);
             double planArea = GeometryHelpers.GetRegionArea(footprints);
@@ -107,16 +113,17 @@ namespace Mycelium.Core
             if (!direction.Unitize())
                 direction = Vector3d.XAxis;
 
-            var weightedHeights = CollectWeightedHeights(masses);
+            var measures = CollectMassMeasures(masses, massHeights, direction);
+            var weightedHeights = measures.Select(m => new WeightedHeight(m.Height, m.PlanArea)).ToList();
             var validHeights = weightedHeights.Select(entry => entry.Height).OrderBy(h => h).ToList();
 
             var heightStatistics = CalculateHeightStatistics(validHeights);
             var weightedStatistics = CalculateWeightedHeightStatistics(weightedHeights);
-            double grossFrontalArea = CalculateGrossFrontalArea(masses, direction);
+            double grossFrontalArea = measures.Sum(m => m.FrontalArea);
 
-            double builtVolume = weightedHeights.Sum(entry => entry.PlanArea * entry.Height);
+            double builtVolume = measures.Sum(m => m.BuiltVolume);
             double roadArea = Math.Max(0.0, siteArea - SumCurveAreas(allParcels));
-            double facadeArea = CalculateFacadeArea(masses, weightedHeights);
+            double facadeArea = measures.Sum(m => m.FacadeArea);
             double skyViewFactor = CalculateSkyViewFactor(boundary, siteArea, masses, terrain,
                 out int skyViewSamples);
 
@@ -168,18 +175,75 @@ namespace Mycelium.Core
         }
 
         /// <summary>
-        /// Extracts (height, plan area) per mass. Plan area is recovered as volume / height,
-        /// which is exact for the vertical prisms this generator extrudes and keeps the
-        /// weighting independent of how many Breps one building happened to be split into.
+        /// Raw measures of one mass and the per-mass metrics derived from them. Every mass is a
+        /// vertical prism: on a flat site its solid spans exactly its design height; on terrain
+        /// the solid also extends below the pad as a foundation, so <see cref="Extent"/> exceeds
+        /// <see cref="Height"/>. Metrics use the design height and count only what stands above
+        /// the pad, so they agree with the Heights output.
         /// </summary>
-        private static List<WeightedHeight> CollectWeightedHeights(IReadOnlyList<Brep> masses)
+        internal readonly struct MassMeasure
         {
-            var entries = new List<WeightedHeight>();
-            if (masses == null)
-                return entries;
-
-            foreach (var mass in masses)
+            public MassMeasure(double height, double extent, double volume, double surfaceArea,
+                double crosswindWidth)
             {
+                Height = height;
+                Extent = extent;
+                Volume = volume;
+                SurfaceArea = surfaceArea;
+                CrosswindWidth = crosswindWidth;
+            }
+
+            /// <summary>Design height above the pad.</summary>
+            public double Height { get; }
+
+            /// <summary>Vertical extent of the solid, foundation included.</summary>
+            public double Extent { get; }
+
+            public double Volume { get; }
+            public double SurfaceArea { get; }
+
+            /// <summary>Width of the mass across the analysis direction.</summary>
+            public double CrosswindWidth { get; }
+
+            /// <summary>
+            /// Volume over extrusion height, exact for a prism and independent of how many Breps
+            /// one building happened to be split into.
+            /// </summary>
+            public double PlanArea => Extent > 0.0 ? Volume / Extent : 0.0;
+
+            public double BuiltVolume => PlanArea * Height;
+
+            /// <summary>
+            /// Silhouette area seen along the analysis direction: crosswind width times height,
+            /// exact for a prism. Summed over masses this is the UNSHIELDED frontal area index of
+            /// Grimmond and Oke (1999): masses standing behind one another are both counted in
+            /// full, and the interior faces of re-entrant footprints such as U-shapes are not.
+            /// </summary>
+            public double FrontalArea => CrosswindWidth * Height;
+
+            /// <summary>
+            /// Wall area above the pad, courtyard walls included: the solid's surface minus roof
+            /// and base gives perimeter times extent, scaled to the design height so that buried
+            /// foundation walls are excluded.
+            /// </summary>
+            public double FacadeArea => Extent > 0.0
+                ? FacadeAreaFromSurface(SurfaceArea, PlanArea) * Height / Extent
+                : 0.0;
+        }
+
+        private static List<MassMeasure> CollectMassMeasures(IReadOnlyList<Brep> masses,
+            IReadOnlyList<double> massHeights, Vector3d direction)
+        {
+            var measures = new List<MassMeasure>();
+            if (masses == null)
+                return measures;
+
+            var crosswind = new Vector3d(-direction.Y, direction.X, 0.0);
+            var analysisPlane = new Plane(Point3d.Origin, direction, crosswind);
+
+            for (int i = 0; i < masses.Count; i++)
+            {
+                var mass = masses[i];
                 if (mass == null)
                     continue;
 
@@ -187,24 +251,43 @@ namespace Mycelium.Core
                 if (!box.IsValid)
                     continue;
 
-                double height = Math.Max(0.0, box.Max.Z - box.Min.Z);
-                if (double.IsNaN(height) || double.IsInfinity(height))
+                double extent = Math.Max(0.0, box.Max.Z - box.Min.Z);
+                if (double.IsNaN(extent) || double.IsInfinity(extent))
                     continue;
 
-                double planArea = 0.0;
-                if (height > 0.0)
+                // Capped at the extent so floating-point noise on a flat site cannot push the
+                // above-pad fraction past one; a missing or invalid design height falls back to it.
+                double height = extent;
+                if (massHeights != null && i < massHeights.Count &&
+                    massHeights[i] >= 0.0 && !double.IsInfinity(massHeights[i]))
                 {
-                    using (var volume = VolumeMassProperties.Compute(mass))
+                    height = Math.Min(massHeights[i], extent);
+                }
+
+                double volume = 0.0;
+                double surfaceArea = 0.0;
+                if (extent > 0.0)
+                {
+                    using (var properties = VolumeMassProperties.Compute(mass))
                     {
-                        if (volume != null && !double.IsNaN(volume.Volume) && !double.IsInfinity(volume.Volume))
-                            planArea = Math.Abs(volume.Volume) / height;
+                        if (properties != null && !double.IsNaN(properties.Volume) && !double.IsInfinity(properties.Volume))
+                            volume = Math.Abs(properties.Volume);
+                    }
+
+                    using (var properties = AreaMassProperties.Compute(mass))
+                    {
+                        if (properties != null && !double.IsNaN(properties.Area) && !double.IsInfinity(properties.Area))
+                            surfaceArea = properties.Area;
                     }
                 }
 
-                entries.Add(new WeightedHeight(height, planArea));
+                var planeBox = mass.GetBoundingBox(analysisPlane);
+                double crosswindWidth = planeBox.IsValid ? Math.Max(0.0, planeBox.Max.Y - planeBox.Min.Y) : 0.0;
+
+                measures.Add(new MassMeasure(height, extent, volume, surfaceArea, crosswindWidth));
             }
 
-            return entries;
+            return measures;
         }
 
         /// <summary>
@@ -256,79 +339,7 @@ namespace Mycelium.Core
             };
         }
 
-        /// <summary>
-        /// Projected (silhouette) frontal area summed over masses, for the given wind direction.
-        /// For the vertical prisms this generator extrudes, the silhouette of one mass is exactly
-        /// its crosswind extent times its height, so the oriented bounding box is exact rather
-        /// than an approximation.
-        /// </summary>
-        /// <remarks>
-        /// This is the UNSHIELDED sum: masses that stand behind one another are both counted in
-        /// full, and no mutual sheltering is applied. It is therefore the frontal area index in
-        /// the sense of Grimmond and Oke (1999), not a shielding-aware frontal exposure. It also
-        /// differs from the summed windward-face area for re-entrant footprints such as U-shapes,
-        /// where interior faces are excluded here.
-        /// </remarks>
-        private static double CalculateGrossFrontalArea(IReadOnlyList<Brep> masses, Vector3d direction)
-        {
-            if (masses == null)
-                return 0.0;
-
-            if (masses.Count == 0)
-                return 0.0;
-
-            var crosswind = new Vector3d(-direction.Y, direction.X, 0.0);
-            var analysisPlane = new Plane(Point3d.Origin, direction, crosswind);
-            double total = 0.0;
-
-            foreach (var mass in masses)
-            {
-                if (mass == null)
-                    continue;
-
-                var box = mass.GetBoundingBox(analysisPlane);
-                if (!box.IsValid)
-                    continue;
-
-                double crosswindWidth = Math.Max(0.0, box.Max.Y - box.Min.Y);
-                double height = Math.Max(0.0, box.Max.Z - box.Min.Z);
-                total += crosswindWidth * height;
-            }
-
-            return total;
-        }
-
-        /// <summary>
-        /// Facade (wall) area summed over masses: perimeter times height. Recovered as total
-        /// surface area minus roof and base, which is exact for the vertical prisms this
-        /// generator extrudes and counts courtyard walls as facade.
-        /// </summary>
-        /// <remarks>
-        /// On terrain the base of a mass is extended below ground as a foundation, so the
-        /// buried part of the wall is included.
-        /// </remarks>
-        private static double CalculateFacadeArea(IReadOnlyList<Brep> masses,
-            IReadOnlyList<WeightedHeight> weightedHeights)
-        {
-            if (masses == null)
-                return 0.0;
-
-            double surfaceArea = 0.0;
-            foreach (var mass in masses)
-            {
-                if (mass == null)
-                    continue;
-
-                using (var area = AreaMassProperties.Compute(mass))
-                {
-                    if (area != null && !double.IsNaN(area.Area) && !double.IsInfinity(area.Area))
-                        surfaceArea += area.Area;
-                }
-            }
-
-            return FacadeAreaFromSurface(surfaceArea, weightedHeights.Sum(entry => entry.PlanArea));
-        }
-
+        /// <summary>Wall area of a prism: its surface area minus roof and base.</summary>
         internal static double FacadeAreaFromSurface(double surfaceArea, double planArea)
         {
             return Math.Max(0.0, surfaceArea - 2.0 * Math.Max(0.0, planArea));
