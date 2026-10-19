@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Mycelium\Core\BoundaryCanonicalizer.cs" Link="Core\BoundaryCanonicalizer.cs" />
+    <Compile Include="..\..\src\Mycelium\Core\BuildingTypeConfig.cs" Link="Core\BuildingTypeConfig.cs" />
     <Compile Include="..\..\src\Mycelium\Core\CaseManifest.cs" Link="Core\CaseManifest.cs" />
     <Compile Include="..\..\src\Mycelium\Core\GeometryHelpers.cs" Link="Core\GeometryHelpers.cs" />
     <Compile Include="..\..\src\Mycelium\Core\GreenNetworkGenerator.cs" Link="Core\GreenNetworkGenerator.cs" />
