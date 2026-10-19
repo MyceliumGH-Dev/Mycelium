@@ -169,6 +169,7 @@ namespace Mycelium.Components
 
             var footprints = new List<Curve>();
             var masses = new List<Brep>();
+            var massHeights = new List<double>();
             var heights = new List<double>();
             var streets = new List<Curve>();
             var floorSlabs = new List<Brep>();
@@ -227,14 +228,14 @@ namespace Mycelium.Components
 
                 totalGFA += GenerateParcelBuildings(parcelCurve, allowedConfigs, rng, floorHeight,
                     generateFloorSlabs, hasTreeConfig, treeConfig, terrain,
-                    footprints, masses, heights, floorSlabs, courtyards, trees);
+                    footprints, masses, massHeights, heights, floorSlabs, courtyards, trees);
             }
 
             // 5. Development and morphology metrics
             var development = CalculateDevelopmentMetrics(boundary, totalGFA);
             string metrics = BuildMetrics(development, allParcels.Count, masses.Count, parks.Count, trees.Count);
-            var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, parks, allParcels,
-                streetWidth, terrain, analysisDirection);
+            var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, massHeights, parks,
+                allParcels, streetWidth, terrain, analysisDirection);
 
             // 6. Reproducible parameter/provenance sidecar. Geometry can be exported independently.
             var manifest = new CaseManifest
@@ -599,7 +600,7 @@ namespace Mycelium.Components
         /// </summary>
         private double GenerateParcelBuildings(Curve parcelCurve, List<BuildingTypeConfig> allowedConfigs,
             Random rng, double floorHeight, bool generateFloorSlabs, bool hasTreeConfig, TreeConfig treeConfig, Brep terrain,
-            List<Curve> footprints, List<Brep> masses, List<double> heights,
+            List<Curve> footprints, List<Brep> masses, List<double> massHeights, List<double> heights,
             List<Brep> floorSlabs, List<Curve> courtyards, List<Brep> trees)
         {
             var plane = Plane.WorldXY;
@@ -672,7 +673,12 @@ namespace Mycelium.Components
 
             // Extrude building masses on terrain
             double zPad = 0.0;
-            masses.AddRange(TerrainMassingHelpers.ExtrudeBuildingOnTerrain(blockFootprints, parcelCurve, height, floorHeight, terrain, out zPad));
+            var parcelMasses = TerrainMassingHelpers.ExtrudeBuildingOnTerrain(blockFootprints, parcelCurve, height, floorHeight, terrain, out zPad);
+            masses.AddRange(parcelMasses);
+
+            // On terrain each solid also reaches below ground as a foundation, so the metrics take
+            // the design height from here rather than from the solid's vertical extent.
+            massHeights.AddRange(Enumerable.Repeat(height, parcelMasses.Count));
 
             // Region area, not a per-curve sum: a perimeter block is returned as an outer curve
             // plus a courtyard curve, and summing both would add the void to the floor area.
