@@ -662,11 +662,9 @@ namespace Mycelium.Components
                 }
             }
 
-            // Random height within the config's floor range
-            double fMin = Math.Max(1.0, selectedConfig.MinFloors);
-            double fMax = Math.Max(fMin, selectedConfig.MaxFloors);
-            double avgFloors = rng.NextDouble() * (fMax - fMin) + fMin;
-            double height = avgFloors * floorHeight;
+            // Random whole number of floors within the config's floor range
+            int floors = selectedConfig.DrawFloorCount(rng);
+            double height = floors * floorHeight;
 
             for (int j = 0; j < blockFootprints.Count; j++)
                 heights.Add(height);
@@ -687,9 +685,9 @@ namespace Mycelium.Components
             double footprintArea = GeometryHelpers.GetRegionArea(blockFootprints);
 
             if (generateFloorSlabs)
-                AddFloorSlabs(blockFootprints, avgFloors, floorHeight, floorSlabs, zPad);
+                AddFloorSlabs(blockFootprints, floors, floorHeight, floorSlabs, zPad);
 
-            return footprintArea * avgFloors;
+            return footprintArea * floors;
         }
 
         /// <summary>
@@ -732,10 +730,9 @@ namespace Mycelium.Components
             return rounded;
         }
 
-        private static void AddFloorSlabs(List<Curve> blockFootprints, double avgFloors, double floorHeight, List<Brep> floorSlabs, double zPad = 0.0)
+        private static void AddFloorSlabs(List<Curve> blockFootprints, int floors, double floorHeight, List<Brep> floorSlabs, double zPad = 0.0)
         {
-            int numFloors = (int)Math.Ceiling(avgFloors);
-            for (int f = 0; f < numFloors; f++)
+            for (int f = 0; f < floors; f++)
             {
                 double z = zPad + f * floorHeight;
                 foreach (var fp in blockFootprints)

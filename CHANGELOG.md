@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Manifest schema version is now `1.2.0` for the added morphology keys. The schema version is part of the case identifier, so identifiers differ from those produced by 0.1.0.5.
+- Buildings now get a whole number of floors, drawn uniformly from `ceil(MinFloors)` to `floor(MaxFloors)` (at least one). Previously the floor count was a fractional value, so heights, GFA and every metric derived from them used fractional floors while the slab count was rounded up. The draw still consumes one random value per parcel, so later random choices stay aligned, but heights and floor areas for a given seed differ from earlier versions.
 
 ### Fixed
 - With a `Terrain` input wired, height-based morphology metrics no longer include building foundations. Masses on terrain are extruded from below the lowest ground point under them, and the metrics read each building's height from the solid's vertical extent, which overstated mean, median, P90, minimum and maximum height, σH and the plan-area-weighted moments, frontal area and λf, built volume and BDR, and AR. The metrics now use the design height above the pad, the same value as the `Heights` output, and facade area and VR count only walls above the pad instead of including the buried foundation walls. Flat-site results are unchanged.

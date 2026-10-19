@@ -65,6 +65,20 @@ namespace Mycelium.Core
         }
 
         /// <summary>
+        /// Draws a whole number of floors uniformly from [ceil(MinFloors), floor(MaxFloors)],
+        /// with at least one floor; if the rounded range is empty, the rounded minimum wins.
+        /// Consumes exactly one value of <paramref name="rng"/>, like the fractional draw it
+        /// replaced, so later random choices in a case stay aligned.
+        /// </summary>
+        public int DrawFloorCount(Random rng)
+        {
+            // Capped below int.MaxValue so the exclusive upper bound cannot overflow.
+            int min = (int)Math.Min(Math.Max(1.0, Math.Ceiling(MinFloors)), int.MaxValue - 1);
+            int max = (int)Math.Min(Math.Max(min, Math.Floor(MaxFloors)), int.MaxValue - 1);
+            return rng.Next(min, max + 1);
+        }
+
+        /// <summary>
         /// Parses a config string. Accepts shorter legacy strings (missing trailing fields
         /// fall back to defaults). Returns false if the string is malformed.
         /// </summary>
