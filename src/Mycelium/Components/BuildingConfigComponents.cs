@@ -22,8 +22,8 @@ namespace Mycelium.Components
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddNumberParameter("MinFloors", "Fmin", "Minimum floors", GH_ParamAccess.item, 3.0);
-            pManager.AddNumberParameter("MaxFloors", "Fmax", "Maximum floors", GH_ParamAccess.item, 6.0);
+            pManager.AddNumberParameter("MinFloors", "Fmin", "Minimum floors (rounded up to a whole number, at least 1)", GH_ParamAccess.item, 3.0);
+            pManager.AddNumberParameter("MaxFloors", "Fmax", "Maximum floors (rounded down to a whole number)", GH_ParamAccess.item, 6.0);
             pManager.AddNumberParameter("Radius", "R", "Corner radius for footprint", GH_ParamAccess.item, 0.0);
             pManager.AddNumberParameter("MinArea", "MinA", "Minimum footprint area (m²)", GH_ParamAccess.item, 100.0);
             pManager.AddNumberParameter("MinSetback", "Smin", "Minimum setback distance (m)", GH_ParamAccess.item, 3.0);
