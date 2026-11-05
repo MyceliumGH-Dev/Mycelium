@@ -6,28 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- Urban form indices in the morphology metrics: built density ratio (BDR), road area ratio (RaR), vertical area ratio (VR), mean ground-level sky view factor (SVF) and aspect ratio (AR), with the underlying built volume, road area and facade area. SVF is ray-cast from a grid of roughly 400 open-ground points, 144 cosine-weighted rays each, against the building masses and the terrain when one is wired; trees do not occlude. AR is the mean building height over the `StreetWidth` input. Road area is the site minus every parcel, parks included.
-- The existing plan area density and plan-area-weighted mean height are now labelled BCR and BHt in the `MorphologyMetrics` text; their manifest keys are unchanged.
-
-### Changed
-- Manifest schema version is now `1.2.0` for the added morphology keys. The schema version is part of the case identifier, so identifiers differ from those produced by 0.1.0.5.
-- Buildings now get a whole number of floors, drawn uniformly from `ceil(MinFloors)` to `floor(MaxFloors)` (at least one). Previously the floor count was a fractional value, so heights, GFA and every metric derived from them used fractional floors while the slab count was rounded up. The draw still consumes one random value per parcel, so later random choices stay aligned, but heights and floor areas for a given seed differ from earlier versions.
-
-### Fixed
-- With a `Terrain` input wired, height-based morphology metrics no longer include building foundations. Masses on terrain are extruded from below the lowest ground point under them, and the metrics read each building's height from the solid's vertical extent, which overstated mean, median, P90, minimum and maximum height, σH and the plan-area-weighted moments, frontal area and λf, built volume and BDR, and AR. The metrics now use the design height above the pad, the same value as the `Heights` output, and facade area and VR count only walls above the pad instead of including the buried foundation walls. Flat-site results are unchanged.
-
-## [0.1.0.5] - 2026-08-27
+## [0.1.0.5] - 2026-11-04
 
 ### Added
 - Optional `Terrain` input on the Massing Generator. When supplied, streets, parks, parcels, courtyards, trees, building masses, and floor slabs are placed on or projected to the generated terrain while the existing flat-site behavior remains unchanged when it is omitted.
 - Continuous terrain generation based on an updated noise algorithm, with terrain-aware massing helpers for elevation sampling, curve projection, tree anchoring, and building foundations that extend below the lowest sampled ground elevation.
 - `Green Network Generator`, a backward-compatible Vegetation component that connects directly to Massing Generator boundary, footprint, and park outputs. Existing parks become network anchors; seeded refuges and guide-aligned or automatic corridors extend them while building footprints are excluded.
 - `StreetNetwork` input on the Massing Generator. Wiring a sub-option name (`"Orthogonal/Cerda"`, `"Fan Plan"`, …) overrides the context-menu selection, so batch campaigns can sweep the network families without editing the definition. Names are case-, accent- and separator-insensitive; unknown names raise a warning listing the valid ones.
-- The case manifest now records the canonical boundary digest, the boundary canonicalization tolerance and decimal count, the document absolute tolerance, and the number of guarded boolean fallbacks taken while generating the case. Manifest schema version is now `1.1.0`.
+- The case manifest now records the canonical boundary digest, the boundary canonicalization tolerance and decimal count, the document absolute tolerance, and the number of guarded boolean fallbacks taken while generating the case.
 - Plan-area-weighted mean height and standard deviation alongside the unweighted values. Roughness parameterizations expect the weighted moments; the unweighted ones give a single small structure the same influence as a tower.
 - `MassCount` in the morphology metrics, reported separately from the footprint count.
 - Runtime warnings when a boundary cannot be canonicalized (the case ID then does not distinguish sites) and when any boolean fallback was taken (a footprint may extend past its setback).
+- Urban form indices in the morphology metrics: built density ratio (BDR), road area ratio (RaR), vertical area ratio (VR), mean ground-level sky view factor (SVF) and aspect ratio (AR), with the underlying built volume, road area and facade area. SVF is ray-cast from a grid of roughly 400 open-ground points, 144 cosine-weighted rays each, against the building masses and the terrain when one is wired; trees do not occlude. AR is the mean building height over the `StreetWidth` input. Road area is the site minus every parcel, parks included.
+- The existing plan area density and plan-area-weighted mean height are now labelled BCR and BHt in the `MorphologyMetrics` text; their manifest keys are unchanged.
+- On terrain, height-based morphology metrics use the design height above the pad, the same value as the `Heights` output, and facade area and VR count only walls above the pad, so buried foundations are excluded.
 - Tests covering case-identifier reproducibility and discrimination, boundary canonicalization invariants, street-network name parsing, and weighted height statistics.
 
 ### Fixed
@@ -39,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Ring parcels in the radial-concentric families use arc sampling derived from radius and tolerance instead of a fixed eight segments per arc, so large rings are no longer visibly faceted and small ones are no longer over-tessellated.
 - Street-network enums moved to `Core/StreetNetworkTypes.cs`. Numeric values are unchanged, so saved definitions still deserialize.
+- Manifest schema version is now `1.2.0`, for the provenance and morphology keys added in this release. The schema version is part of the case identifier, so identifiers differ from those produced by earlier versions.
+- Buildings now get a whole number of floors, drawn uniformly from `ceil(MinFloors)` to `floor(MaxFloors)` (at least one). Previously the floor count was a fractional value, so heights, GFA and every metric derived from them used fractional floors while the slab count was rounded up. The draw still consumes one random value per parcel, so later random choices stay aligned, but heights and floor areas for a given seed differ from earlier versions.
 
 ## [0.1.0.4] - 2026-08-02
 
