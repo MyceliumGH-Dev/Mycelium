@@ -12,6 +12,7 @@
 <p align="center">
   <a href="https://github.com/MyceliumGH-Dev/Mycelium/actions/workflows/ci-build.yml"><img src="https://github.com/MyceliumGH-Dev/Mycelium/actions/workflows/ci-build.yml/badge.svg" alt="Build"/></a>
   <a href="https://rhinopackages.github.io/?search=Mycelium"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=%24.version&suffix=%20&logo=Rhinoceros&label=Yak" alt="Yak"/></a>
+  <a href="https://rhinopackages.github.io/?search=Mycelium&sort=2&p=Mycelium"><img src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fyak.rhino3d.com%2Fversions%2FMycelium&search=%22version%22%3A%22%28%5B%5E%22%5D*-%5B%5E%22%5D*%29%22&replace=%241&logo=Rhinoceros&label=Yak%20beta&color=orange" alt="Yak beta"/></a>
   <a href="https://yak.rhino3d.com/packages/Mycelium" target="_blank"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fyak.rhino3d.com%2Fpackages%2FMycelium&query=download_count&label=Downloads" alt="Downloads"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Rhino-8-black.svg" alt="Rhino 8"/>
