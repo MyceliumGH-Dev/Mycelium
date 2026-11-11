@@ -72,10 +72,32 @@ namespace Mycelium.Core
         /// </summary>
         public int DrawFloorCount(Random rng)
         {
-            // Capped below int.MaxValue so the exclusive upper bound cannot overflow.
-            int min = (int)Math.Min(Math.Max(1.0, Math.Ceiling(MinFloors)), int.MaxValue - 1);
-            int max = (int)Math.Min(Math.Max(min, Math.Floor(MaxFloors)), int.MaxValue - 1);
+            FloorBounds(out int min, out int max);
             return rng.Next(min, max + 1);
+        }
+
+        /// <summary>
+        /// Whole number of floors that brings <paramref name="footprintArea"/> closest to
+        /// <paramref name="targetGrossFloorArea"/>, clamped to the same range as
+        /// <see cref="DrawFloorCount"/>. A missing target or footprint gives the minimum.
+        /// </summary>
+        public int FloorCountForTarget(double targetGrossFloorArea, double footprintArea)
+        {
+            FloorBounds(out int min, out int max);
+            if (!(targetGrossFloorArea > 0.0) || !(footprintArea > 0.0))
+                return min;
+
+            double exact = targetGrossFloorArea / footprintArea;
+            if (exact >= max)
+                return max;
+            return Math.Max(min, (int)Math.Round(exact, MidpointRounding.AwayFromZero));
+        }
+
+        private void FloorBounds(out int min, out int max)
+        {
+            // Capped below int.MaxValue so the exclusive upper bound cannot overflow.
+            min = (int)Math.Min(Math.Max(1.0, Math.Ceiling(MinFloors)), int.MaxValue - 1);
+            max = (int)Math.Min(Math.Max(min, Math.Floor(MaxFloors)), int.MaxValue - 1);
         }
 
         /// <summary>

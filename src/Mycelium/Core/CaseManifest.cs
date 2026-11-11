@@ -28,6 +28,12 @@ namespace Mycelium.Core
         public DevelopmentMetrics Development { get; set; }
         public MorphologyMetricsResult Morphology { get; set; }
 
+        /// <summary>
+        /// One entry per parcel produced by the subdivision, in generation order. Not part of the
+        /// case identity: it is derived output, like the metrics.
+        /// </summary>
+        public IReadOnlyList<ParcelRecord> Parcels { get; set; }
+
         public string ToJson()
         {
             return JsonSerializer.Serialize(this, JsonOptions);
@@ -95,6 +101,10 @@ namespace Mycelium.Core
                 ["analysisDirectionX"] = Number(parameters?.AnalysisDirection?.X),
                 ["analysisDirectionY"] = Number(parameters?.AnalysisDirection?.Y)
             };
+
+            // Added only when set, so identifiers of cases without a target stay unchanged.
+            if (parameters?.TargetFloorAreaRatio != null)
+                identity["targetFloorAreaRatio"] = Number(parameters.TargetFloorAreaRatio);
 
             var text = new StringBuilder();
             foreach (var entry in identity)
@@ -176,6 +186,38 @@ namespace Mycelium.Core
         public string TreeConfiguration { get; set; }
         public bool TreeConfigurationProvided { get; set; }
         public Direction2D AnalysisDirection { get; set; }
+
+        /// <summary>
+        /// Site floor area ratio the floor counts were solved for (GFA / site area). Null when
+        /// floors were drawn at random from the building configurations.
+        /// </summary>
+        public double? TargetFloorAreaRatio { get; set; }
+    }
+
+    /// <summary>
+    /// Outcome for one parcel. <see cref="Id"/> is the parcel's index in the subdivision, so it
+    /// is stable only while the boundary, network, divisions, street width, seed and the
+    /// smallest configured MinArea stay the same.
+    /// </summary>
+    public sealed class ParcelRecord
+    {
+        public int Id { get; set; }
+
+        /// <summary>"building", "park", or "empty" (too small for its building type, or no footprint fitted).</summary>
+        public string Use { get; set; }
+
+        public double Area { get; set; }
+        public string BuildingType { get; set; }
+        public int Floors { get; set; }
+        public double Height { get; set; }
+        public double FootprintArea { get; set; }
+        public double GrossFloorArea { get; set; }
+
+        /// <summary>Parcel GFA / parcel area. Not comparable with the site FAR, which divides by the whole site.</summary>
+        public double FloorAreaRatio { get; set; }
+
+        /// <summary>This parcel's share of the target GFA. Null when no target FAR was set.</summary>
+        public double? TargetGrossFloorArea { get; set; }
     }
 
     public sealed class Direction2D
