@@ -42,14 +42,40 @@
         "buildingConfigurations": { "type": "array", "items": { "type": "string" } },
         "treeConfiguration": { "type": "string" },
         "treeConfigurationProvided": { "type": "boolean" },
-        "analysisDirection": { "$ref": "#/$defs/direction" }
+        "analysisDirection": { "$ref": "#/$defs/direction" },
+        "targetFloorAreaRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Site FAR (GFA / site area) the floor counts were solved for. Absent when floors were drawn at random; part of the case identifier only when present."
+        }
       }
     },
     "geometry": { "$ref": "#/$defs/counts" },
     "development": { "$ref": "#/$defs/numericObject" },
-    "morphology": { "$ref": "#/$defs/numericObject" }
+    "morphology": { "$ref": "#/$defs/numericObject" },
+    "parcels": {
+      "type": "array",
+      "description": "One entry per subdivision parcel in generation order. Derived output; not part of the case identifier.",
+      "items": { "$ref": "#/$defs/parcel" }
+    }
   },
   "$defs": {
+    "parcel": {
+      "type": "object",
+      "required": ["id", "use", "area", "floors", "height", "footprintArea", "grossFloorArea", "floorAreaRatio"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 0, "description": "Index in the subdivision; stable only while boundary, network, divisions, street width, seed and the smallest MinArea are unchanged." },
+        "use": { "enum": ["building", "park", "empty"] },
+        "area": { "type": "number", "minimum": 0 },
+        "buildingType": { "type": "string", "description": "Typology of the building; absent for parks and empty parcels." },
+        "floors": { "type": "integer", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "footprintArea": { "type": "number", "minimum": 0 },
+        "grossFloorArea": { "type": "number", "minimum": 0 },
+        "floorAreaRatio": { "type": "number", "minimum": 0, "description": "Parcel GFA / parcel area." },
+        "targetGrossFloorArea": { "type": "number", "minimum": 0, "description": "Share of the target GFA assigned to this parcel; absent without a target FAR." }
+      }
+    },
     "direction": {
       "type": "object",
       "required": ["x", "y"],

@@ -126,6 +126,36 @@ namespace Mycelium.Core.Tests
         }
 
         [Fact]
+        public void CaseId_IncludesTargetFarOnlyWhenSet()
+        {
+            var baseline = ManifestFor("aaaa", new[] { "0|3|6" });
+            var targeted = ManifestFor("aaaa", new[] { "0|3|6" });
+            targeted.Parameters.TargetFloorAreaRatio = 2.5;
+
+            Assert.DoesNotContain("targetFloorAreaRatio", baseline.CanonicalIdentity());
+            Assert.NotEqual(baseline.CalculateCaseId(), targeted.CalculateCaseId());
+        }
+
+        [Fact]
+        public void Manifest_SerializesParcelsWithoutChangingTheCaseId()
+        {
+            var manifest = ManifestFor("aaaa", new[] { "0|3|6" });
+            string before = manifest.CalculateCaseId();
+            manifest.Parcels = new[]
+            {
+                new ParcelRecord { Id = 0, Use = "park", Area = 900.0 },
+                new ParcelRecord { Id = 1, Use = "building", Area = 1000.0, BuildingType = "Courtyard",
+                    Floors = 4, Height = 12.8, FootprintArea = 400.0, GrossFloorArea = 1600.0, FloorAreaRatio = 1.6 }
+            };
+
+            string json = manifest.ToJson();
+            Assert.Contains("\"parcels\"", json);
+            Assert.Contains("\"buildingType\": \"Courtyard\"", json);
+            Assert.DoesNotContain("targetGrossFloorArea", json); // null is omitted
+            Assert.Equal(before, manifest.CalculateCaseId());
+        }
+
+        [Fact]
         public void CaseId_DependsOnModelTolerance()
         {
             var baseline = ManifestFor("aaaa", new[] { "0|3|6" });

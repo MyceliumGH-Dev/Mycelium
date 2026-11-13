@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Optional `TargetFAR` input on the Massing Generator, appended after `Terrain`. When set, the site's target GFA (target FAR × site area) is shared among the non-park parcels by area, and each building's floor count is solved from its share (rounded to the nearest whole floor, clamped to the config's `MinFloors`–`MaxFloors`) instead of drawn at random. The random draw still runs, so footprints, configs and trees match the run without a target; only heights change. Parks, empty parcels and the clamp can leave the achieved FAR below the target; the `Metrics` text shows both. The value is recorded as `parameters.targetFloorAreaRatio` and joins the case identifier only when set, so identifiers of cases without a target are unchanged.
+- `parcels` array in the case manifest: one entry per subdivision parcel with its id (subdivision index), use (`building`, `park` or `empty`), area, building type, floors, height, footprint area, GFA, parcel FAR and, with a target, its share of the target GFA. It gives agents and dataset pipelines per-parcel results without parsing geometry, and is not part of the case identifier. Both additions are optional properties, so the manifest schema stays at `1.2.0` and existing case identifiers are unchanged.
+
 ## [0.1.0.5] - 2026-11-04
 
 ### Added

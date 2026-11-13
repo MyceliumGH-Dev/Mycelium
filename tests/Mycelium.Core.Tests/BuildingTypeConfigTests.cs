@@ -42,6 +42,20 @@ namespace Mycelium.Core.Tests
             Assert.Equal(new HashSet<int> { expected }, DrawMany(minFloors, maxFloors));
         }
 
+        [Theory]
+        [InlineData(1000.0, 250.0, 4)]   // exact
+        [InlineData(1125.0, 250.0, 5)]   // 4.5 rounds away from zero
+        [InlineData(1100.0, 250.0, 4)]   // 4.4 rounds to nearest
+        [InlineData(100.0, 250.0, 3)]    // below range clamps to MinFloors
+        [InlineData(1e12, 250.0, 6)]     // above range clamps to MaxFloors
+        [InlineData(0.0, 250.0, 3)]      // no target gives the minimum
+        [InlineData(1000.0, 0.0, 3)]     // no footprint gives the minimum
+        public void FloorCountForTarget_RoundsAndClamps(double targetGfa, double footprint, int expected)
+        {
+            var config = BuildingTypeConfig.Default; // 3 to 6 floors
+            Assert.Equal(expected, config.FloorCountForTarget(targetGfa, footprint));
+        }
+
         [Fact]
         public void FloorCount_ConsumesExactlyOneRandomValue()
         {
