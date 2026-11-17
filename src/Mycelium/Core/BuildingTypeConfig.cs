@@ -93,7 +93,8 @@ namespace Mycelium.Core
             return Math.Max(min, (int)Math.Round(exact, MidpointRounding.AwayFromZero));
         }
 
-        private void FloorBounds(out int min, out int max)
+        /// <summary>Whole-floor range shared by the random draw and the target solve.</summary>
+        public void FloorBounds(out int min, out int max)
         {
             // Capped below int.MaxValue so the exclusive upper bound cannot overflow.
             min = (int)Math.Min(Math.Max(1.0, Math.Ceiling(MinFloors)), int.MaxValue - 1);

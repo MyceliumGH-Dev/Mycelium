@@ -137,6 +137,26 @@ namespace Mycelium.Core.Tests
         }
 
         [Fact]
+        public void CaseId_IncludesDensityHubsOnlyWhenSet_IgnoringTheirOrder()
+        {
+            var baseline = ManifestFor("aaaa", new[] { "0|3|6" });
+            var hubs = ManifestFor("aaaa", new[] { "0|3|6" });
+            hubs.Parameters.DensityHubs = new[] { new[] { 10.0, 20.0 }, new[] { -5.0, 0.0 } };
+            hubs.Parameters.HubDensityRatio = 3.0;
+            var reordered = ManifestFor("aaaa", new[] { "0|3|6" });
+            reordered.Parameters.DensityHubs = new[] { new[] { -5.0, 0.0 }, new[] { 10.0, 20.0 } };
+            reordered.Parameters.HubDensityRatio = 3.0;
+            var steeper = ManifestFor("aaaa", new[] { "0|3|6" });
+            steeper.Parameters.DensityHubs = hubs.Parameters.DensityHubs;
+            steeper.Parameters.HubDensityRatio = 5.0;
+
+            Assert.DoesNotContain("densityHubs", baseline.CanonicalIdentity());
+            Assert.NotEqual(baseline.CalculateCaseId(), hubs.CalculateCaseId());
+            Assert.Equal(hubs.CalculateCaseId(), reordered.CalculateCaseId());
+            Assert.NotEqual(hubs.CalculateCaseId(), steeper.CalculateCaseId());
+        }
+
+        [Fact]
         public void Manifest_SerializesParcelsWithoutChangingTheCaseId()
         {
             var manifest = ManifestFor("aaaa", new[] { "0|3|6" });

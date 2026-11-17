@@ -106,6 +106,15 @@ namespace Mycelium.Core
             if (parameters?.TargetFloorAreaRatio != null)
                 identity["targetFloorAreaRatio"] = Number(parameters.TargetFloorAreaRatio);
 
+            // Same rule for the hubs. Sorted, because only the nearest hub matters to a parcel.
+            if (parameters?.DensityHubs != null)
+            {
+                identity["densityHubs"] = string.Join("\u001f", parameters.DensityHubs
+                    .Select(hub => string.Join(",", hub.Select(value => Number(value))))
+                    .OrderBy(hub => hub, StringComparer.Ordinal));
+                identity["hubDensityRatio"] = Number(parameters.HubDensityRatio);
+            }
+
             var text = new StringBuilder();
             foreach (var entry in identity)
                 text.Append(entry.Key).Append('=').Append(entry.Value).Append('\u001e');
@@ -192,6 +201,18 @@ namespace Mycelium.Core
         /// floors were drawn at random from the building configurations.
         /// </summary>
         public double? TargetFloorAreaRatio { get; set; }
+
+        /// <summary>
+        /// Density centres as [x, y] in model units. Null when none shaped the heights, which
+        /// includes hubs wired without a target FAR.
+        /// </summary>
+        public IReadOnlyList<double[]> DensityHubs { get; set; }
+
+        /// <summary>
+        /// Target GFA per parcel area at the parcel nearest a hub, relative to the farthest one.
+        /// Null without <see cref="DensityHubs"/>.
+        /// </summary>
+        public double? HubDensityRatio { get; set; }
     }
 
     /// <summary>
@@ -216,7 +237,10 @@ namespace Mycelium.Core
         /// <summary>Parcel GFA / parcel area. Not comparable with the site FAR, which divides by the whole site.</summary>
         public double FloorAreaRatio { get; set; }
 
-        /// <summary>This parcel's share of the target GFA. Null when no target FAR was set.</summary>
+        /// <summary>
+        /// This parcel's share of the target GFA before rounding to whole floors, within its floor
+        /// range. Null when no target FAR was set or the parcel has no building.
+        /// </summary>
         public double? TargetGrossFloorArea { get; set; }
     }
 

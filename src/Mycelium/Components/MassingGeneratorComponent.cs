@@ -64,10 +64,22 @@ namespace Mycelium.Components
             pManager.AddNumberParameter("TargetFAR", "FAR",
                 "Optional target floor area ratio for the whole site (GFA / site area, the same measure " +
                 "as the FAR metric, typically 0.5 to 6). When set, each building's floor count is solved " +
-                "from its parcel's share of the target GFA instead of drawn at random, then clamped to the " +
-                "building config's MinFloors to MaxFloors. Parks, skipped parcels and that clamp can leave " +
-                "the achieved FAR below the target. Leave empty to draw floors at random.",
+                "from its parcel's share of the target GFA instead of drawn at random, within the " +
+                "building config's MinFloors to MaxFloors. Floor area a building cannot take because of " +
+                "that range goes to the other buildings, so the target is missed only by whole-floor " +
+                "rounding or when it lies outside what the floor ranges allow. Leave empty to draw " +
+                "floors at random.",
                 GH_ParamAccess.item);
+            pManager.AddPointParameter("DensityHubs", "Hubs",
+                "Optional density centres. With TargetFAR set, parcels nearer a hub receive a larger " +
+                "share of the target GFA and so more floors. Distance is measured in plan from the " +
+                "parcel centroid to the nearest hub. Ignored without TargetFAR.",
+                GH_ParamAccess.list);
+            pManager.AddNumberParameter("HubDensityRatio", "HubR",
+                "Target GFA per parcel area at the parcel nearest a hub, relative to the farthest one; " +
+                "linear with distance in between. 1 is uniform, below 1 makes the periphery denser. " +
+                "Only used with DensityHubs.",
+                GH_ParamAccess.item, 3.0);
 
             pManager[4].Optional = true; // BuildingConfigs
             pManager[7].Optional = true; // Trees
@@ -75,6 +87,7 @@ namespace Mycelium.Components
             pManager[10].Optional = true; // StreetNetwork
             pManager[11].Optional = true; // Terrain
             pManager[12].Optional = true; // TargetFAR
+            pManager[13].Optional = true; // DensityHubs
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -135,6 +148,23 @@ namespace Mycelium.Components
                 else
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                         "TargetFAR must be a positive number. Drawing floors at random instead.");
+            }
+
+            var densityHubs = new List<Point3d>();
+            double hubDensityRatio = 3.0;
+            DA.GetDataList(13, densityHubs);
+            DA.GetData(14, ref hubDensityRatio);
+            if (densityHubs.Count > 0 && !targetFar.HasValue)
+            {
+                densityHubs.Clear();
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Remark,
+                    "DensityHubs only shape the heights when TargetFAR is set. Ignoring them.");
+            }
+            else if (densityHubs.Count > 0 && !(hubDensityRatio > 0.0 && !double.IsInfinity(hubDensityRatio)))
+            {
+                densityHubs.Clear();
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    "HubDensityRatio must be a positive number. Ignoring DensityHubs.");
             }
 
             // The wired sub-option wins over the context menu so a batch sweep needs no menu
@@ -216,17 +246,11 @@ namespace Mycelium.Components
             // 3. Randomly select park parcels (partial Fisher-Yates shuffle)
             var parkIndices = SelectParkIndices(allParcels.Count, numParks, rng);
 
-            // 4. Populate each parcel. With a target FAR, the site's target GFA is shared among the
-            // non-park parcels by area, so parks and streets are compensated by taller buildings.
+            // 4. Lay out each parcel. Heights wait until every footprint is known, so a target FAR
+            // is shared among the buildings that exist rather than among all non-park parcels.
             var parcelAreas = allParcels.Select(GeometryHelpers.GetCurveArea).ToList();
-            double builtParcelArea = Enumerable.Range(0, allParcels.Count)
-                .Where(i => !parkIndices.Contains(i)).Sum(i => parcelAreas[i]);
-            double targetGfaPerParcelArea = targetFar.HasValue && builtParcelArea > 0
-                ? targetFar.Value * GeometryHelpers.GetCurveArea(boundary) / builtParcelArea
-                : 0.0;
-
-            double totalGFA = 0.0;
-            var parcelRecords = new List<ParcelRecord>(allParcels.Count);
+            var parcelRecords = new ParcelRecord[allParcels.Count];
+            var plans = new List<ParcelPlan>();
 
             for (int i = 0; i < allParcels.Count; i++)
             {
@@ -234,7 +258,7 @@ namespace Mycelium.Components
 
                 if (parkIndices.Contains(i))
                 {
-                    parcelRecords.Add(new ParcelRecord { Id = i, Use = "park", Area = parcelAreas[i] });
+                    parcelRecords[i] = new ParcelRecord { Id = i, Use = "park", Area = parcelAreas[i] };
 
                     if (terrain != null)
                         parks.AddRange(TerrainMassingHelpers.ProjectCurvesToTerrain(new[] { parcelCurve }, terrain));
@@ -257,25 +281,72 @@ namespace Mycelium.Components
                 else
                     parcels.Add(parcelCurve);
 
-                double? parcelTargetGfa = targetFar.HasValue ? targetGfaPerParcelArea * parcelAreas[i] : (double?)null;
-                var record = GenerateParcelBuildings(parcelCurve, allowedConfigs, rng, floorHeight,
-                    generateFloorSlabs, hasTreeConfig, treeConfig, terrain, parcelTargetGfa ?? 0.0,
-                    footprints, masses, massHeights, heights, floorSlabs, courtyards, trees);
-                record.Id = i;
-                record.Area = parcelAreas[i];
-                record.FloorAreaRatio = parcelAreas[i] > 0 ? record.GrossFloorArea / parcelAreas[i] : 0.0;
-                record.TargetGrossFloorArea = parcelTargetGfa;
-                parcelRecords.Add(record);
+                var plan = PlanParcelBuildings(parcelCurve, allowedConfigs, rng, hasTreeConfig, treeConfig,
+                    terrain, footprints, courtyards, trees);
+                if (plan == null)
+                {
+                    parcelRecords[i] = new ParcelRecord { Id = i, Use = "empty", Area = parcelAreas[i] };
+                    continue;
+                }
+                plan.Index = i;
+                plans.Add(plan);
+            }
+
+            // 5. Floors. With a target FAR each building asks for floor area in proportion to its
+            // parcel area (times a hub factor), and what a floor range refuses goes to the others.
+            double[] demands = null;
+            if (targetFar.HasValue && plans.Count > 0)
+            {
+                var weights = plans.Select(p => parcelAreas[p.Index]).ToArray();
+                if (densityHubs.Count > 0)
+                {
+                    var factors = FloorAllocation.HubFactors(
+                        plans.Select(p => DistanceToNearestHub(p.Parcel, densityHubs)).ToArray(), hubDensityRatio);
+                    for (int k = 0; k < weights.Length; k++)
+                        weights[k] *= factors[k];
+                }
+
+                double siteArea = GeometryHelpers.GetCurveArea(boundary);
+                double targetGfa = targetFar.Value * siteArea;
+                double scale = FloorAllocation.SolveScale(plans.Select(p => p.FootprintArea).ToArray(), weights,
+                    plans.Select(p => p.MinFloors).ToArray(), plans.Select(p => p.MaxFloors).ToArray(), targetGfa);
+                demands = weights.Select(w => scale * w).ToArray();
+
+                double lowestGfa = plans.Sum(p => p.FootprintArea * p.MinFloors);
+                double highestGfa = plans.Sum(p => p.FootprintArea * p.MaxFloors);
+                if (siteArea > 0 && (targetGfa < lowestGfa * (1 - 1e-9) || targetGfa > highestGfa * (1 + 1e-9)))
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Remark,
+                        $"TargetFAR {targetFar.Value:F2} is outside what the floor ranges allow on this layout " +
+                        $"({lowestGfa / siteArea:F2} to {highestGfa / siteArea:F2}). Adjust MinFloors/MaxFloors to reach it.");
+            }
+
+            double totalGFA = 0.0;
+            for (int k = 0; k < plans.Count; k++)
+            {
+                var plan = plans[k];
+                int floors = demands != null
+                    ? plan.Config.FloorCountForTarget(demands[k], plan.FootprintArea)
+                    : plan.DrawnFloors;
+                var record = BuildParcelMasses(plan, floors, floorHeight, generateFloorSlabs, terrain,
+                    masses, massHeights, heights, floorSlabs);
+                double area = parcelAreas[plan.Index];
+                record.Id = plan.Index;
+                record.Area = area;
+                record.FloorAreaRatio = area > 0 ? record.GrossFloorArea / area : 0.0;
+                if (demands != null)
+                    record.TargetGrossFloorArea = FloorAllocation.ContinuousShare(
+                        demands[k], plan.FootprintArea, plan.MinFloors, plan.MaxFloors);
+                parcelRecords[plan.Index] = record;
                 totalGFA += record.GrossFloorArea;
             }
 
-            // 5. Development and morphology metrics
+            // 6. Development and morphology metrics
             var development = CalculateDevelopmentMetrics(boundary, totalGFA);
             string metrics = BuildMetrics(development, targetFar, allParcels.Count, masses.Count, parks.Count, trees.Count);
             var morphology = MorphologyMetrics.Calculate(boundary, footprints, masses, massHeights, parks,
                 allParcels, streetWidth, terrain, analysisDirection);
 
-            // 6. Reproducible parameter/provenance sidecar. Geometry can be exported independently.
+            // 7. Reproducible parameter/provenance sidecar. Geometry can be exported independently.
             var manifest = new CaseManifest
             {
                 Generator = new GeneratorProvenance { Version = CaseManifest.InstalledVersion() },
@@ -302,7 +373,11 @@ namespace Mycelium.Components
                         X = morphology.AnalysisDirectionX,
                         Y = morphology.AnalysisDirectionY
                     },
-                    TargetFloorAreaRatio = targetFar
+                    TargetFloorAreaRatio = targetFar,
+                    DensityHubs = densityHubs.Count > 0
+                        ? densityHubs.Select(hub => new[] { hub.X, hub.Y }).ToArray()
+                        : null,
+                    HubDensityRatio = densityHubs.Count > 0 ? hubDensityRatio : (double?)null
                 },
                 Geometry = new GeometrySummary
                 {
@@ -634,20 +709,35 @@ namespace Mycelium.Components
             return parkIndices;
         }
 
-        /// <summary>
-        /// Generates the building on one parcel: creates footprints, extrudes the mass,
-        /// and optionally adds floor slabs and courtyard trees. A positive
-        /// <paramref name="targetGfa"/> solves the floor count instead of drawing it.
-        /// The caller fills in the record's id, area and ratios.
-        /// </summary>
-        private ParcelRecord GenerateParcelBuildings(Curve parcelCurve, List<BuildingTypeConfig> allowedConfigs,
-            Random rng, double floorHeight, bool generateFloorSlabs, bool hasTreeConfig, TreeConfig treeConfig, Brep terrain,
-            double targetGfa,
-            List<Curve> footprints, List<Brep> masses, List<double> massHeights, List<double> heights,
-            List<Brep> floorSlabs, List<Curve> courtyards, List<Brep> trees)
+        /// <summary>A parcel's footprints and config, waiting for its floor count.</summary>
+        private sealed class ParcelPlan
         {
-            var empty = new ParcelRecord { Use = "empty" };
+            public int Index;
+            public Curve Parcel;
+            public BuildingTypeConfig Config;
+            public List<Curve> Footprints;
+            public double FootprintArea;
+            public int DrawnFloors;
+            public int MinFloors;
+            public int MaxFloors;
+        }
 
+        /// <summary>Plan distance from the parcel centroid to the nearest hub.</summary>
+        private static double DistanceToNearestHub(Curve parcel, List<Point3d> hubs)
+        {
+            Point3d c = AreaMassProperties.Compute(parcel)?.Centroid ?? parcel.GetBoundingBox(true).Center;
+            return hubs.Min(hub => Math.Sqrt((hub.X - c.X) * (hub.X - c.X) + (hub.Y - c.Y) * (hub.Y - c.Y)));
+        }
+
+        /// <summary>
+        /// Lays out the building on one parcel: picks a config, creates footprints and courtyard
+        /// trees, and draws a floor count. Makes every random choice of the parcel, so the masses
+        /// can be built later without touching the stream. Returns null when nothing fits.
+        /// </summary>
+        private ParcelPlan PlanParcelBuildings(Curve parcelCurve, List<BuildingTypeConfig> allowedConfigs,
+            Random rng, bool hasTreeConfig, TreeConfig treeConfig, Brep terrain,
+            List<Curve> footprints, List<Curve> courtyards, List<Brep> trees)
+        {
             var plane = Plane.WorldXY;
             if (parcelCurve.ClosedCurveOrientation(plane) == CurveOrientation.Clockwise)
                 parcelCurve.Reverse();
@@ -665,7 +755,7 @@ namespace Mycelium.Components
 
             var buildableOffsets = GeometryHelpers.OffsetCurve(parcelCurve, -setback, plane);
             if (buildableOffsets == null || buildableOffsets.Length == 0)
-                return empty;
+                return null;
 
             double buildableArea = 0.0;
             foreach (var bo in buildableOffsets)
@@ -673,12 +763,12 @@ namespace Mycelium.Components
 
             // Skip parcels too small for the selected building type
             if (buildableArea < selectedConfig.MinArea)
-                return empty;
+                return null;
 
             var (blockFootprints, courtyardInteriors) = GenerateFootprints(selectedConfig.Type, parcelCurve, setback, depth, rng);
 
             if (blockFootprints == null || blockFootprints.Count == 0)
-                return empty;
+                return null;
 
             if (selectedConfig.CornerRadius > 0.01)
                 blockFootprints = ApplyCornerRadius(blockFootprints, selectedConfig.CornerRadius);
@@ -716,17 +806,36 @@ namespace Mycelium.Components
             // The random draw always runs so a target FAR changes heights only, not the later
             // random choices (configs, setbacks, trees) of the case.
             int drawnFloors = selectedConfig.DrawFloorCount(rng);
-            int floors = targetGfa > 0.0
-                ? selectedConfig.FloorCountForTarget(targetGfa, footprintArea)
-                : drawnFloors;
+            selectedConfig.FloorBounds(out int minFloors, out int maxFloors);
+
+            return new ParcelPlan
+            {
+                Parcel = parcelCurve,
+                Config = selectedConfig,
+                Footprints = blockFootprints,
+                FootprintArea = footprintArea,
+                DrawnFloors = drawnFloors,
+                MinFloors = minFloors,
+                MaxFloors = maxFloors
+            };
+        }
+
+        /// <summary>
+        /// Extrudes a planned parcel to <paramref name="floors"/> floors and optionally adds
+        /// floor slabs. The caller fills in the record's id, area and ratios.
+        /// </summary>
+        private static ParcelRecord BuildParcelMasses(ParcelPlan plan, int floors, double floorHeight,
+            bool generateFloorSlabs, Brep terrain,
+            List<Brep> masses, List<double> massHeights, List<double> heights, List<Brep> floorSlabs)
+        {
             double height = floors * floorHeight;
 
-            for (int j = 0; j < blockFootprints.Count; j++)
+            for (int j = 0; j < plan.Footprints.Count; j++)
                 heights.Add(height);
 
             // Extrude building masses on terrain
             double zPad = 0.0;
-            var parcelMasses = TerrainMassingHelpers.ExtrudeBuildingOnTerrain(blockFootprints, parcelCurve, height, floorHeight, terrain, out zPad);
+            var parcelMasses = TerrainMassingHelpers.ExtrudeBuildingOnTerrain(plan.Footprints, plan.Parcel, height, floorHeight, terrain, out zPad);
             masses.AddRange(parcelMasses);
 
             // On terrain each solid also reaches below ground as a foundation, so the metrics take
@@ -734,16 +843,16 @@ namespace Mycelium.Components
             massHeights.AddRange(Enumerable.Repeat(height, parcelMasses.Count));
 
             if (generateFloorSlabs)
-                AddFloorSlabs(blockFootprints, floors, floorHeight, floorSlabs, zPad);
+                AddFloorSlabs(plan.Footprints, floors, floorHeight, floorSlabs, zPad);
 
             return new ParcelRecord
             {
                 Use = "building",
-                BuildingType = selectedConfig.Type.ToString(),
+                BuildingType = plan.Config.Type.ToString(),
                 Floors = floors,
                 Height = height,
-                FootprintArea = footprintArea,
-                GrossFloorArea = footprintArea * floors
+                FootprintArea = plan.FootprintArea,
+                GrossFloorArea = plan.FootprintArea * floors
             };
         }
 

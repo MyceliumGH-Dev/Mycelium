@@ -47,6 +47,16 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Site FAR (GFA / site area) the floor counts were solved for. Absent when floors were drawn at random; part of the case identifier only when present."
+        },
+        "densityHubs": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+          "description": "Density centres as [x, y] in model units. Absent when none shaped the heights; part of the case identifier only when present."
+        },
+        "hubDensityRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Target GFA per parcel area at the parcel nearest a hub, relative to the farthest one. Present with densityHubs."
         }
       }
     },
@@ -73,7 +83,7 @@
         "footprintArea": { "type": "number", "minimum": 0 },
         "grossFloorArea": { "type": "number", "minimum": 0 },
         "floorAreaRatio": { "type": "number", "minimum": 0, "description": "Parcel GFA / parcel area." },
-        "targetGrossFloorArea": { "type": "number", "minimum": 0, "description": "Share of the target GFA assigned to this parcel; absent without a target FAR." }
+        "targetGrossFloorArea": { "type": "number", "minimum": 0, "description": "Share of the target GFA assigned to this parcel before whole-floor rounding, within its floor range; absent without a target FAR or a building." }
       }
     },
     "direction": {
